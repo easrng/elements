@@ -1,12 +1,22 @@
 {
   "name": "@easrng/elements",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "a tiny framework powered by @preact/signals-core",
   "license": "MIT",
   "type": "module",
   "exports": {
-    "types": "./dist/index.d.ts",
-    "default": "./dist/index.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./jsx-runtime": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./jsx-dev-runtime": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "scripts": {
     "build": "del-cli dist && tsc",
