@@ -1,14 +1,14 @@
 {
     "compilerOptions": {
         "outDir": "dist",
-        "module": "node16",
-        "moduleResolution": "node16",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
         "moduleDetection": "force",
-        "target": "ES2022", // Node.js 18
+        "target": "ESNext",
         "lib": [
             "DOM",
             "DOM.Iterable",
-            "ES2022"
+            "ESNext"
         ],
         "declaration": true,
         "pretty": true,
