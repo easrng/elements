@@ -1,0 +1,37 @@
+{
+  "name": "@easrng/elements",
+  "version": "0.0.2",
+  "description": "a tiny framework powered by @preact/signals-core",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    "types": "./dist/index.d.ts",
+    "default": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "del-cli dist && tsc",
+    "prepare": "xo && npm run build",
+    "lint": "xo",
+    "lint-fix": "xo --fix"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@preact/signals-core": "^1.5.1"
+  },
+  "devDependencies": {
+    "del-cli": "^5.1.0",
+    "typescript": "^5.3.3",
+    "xo": "^0.56.0"
+  },
+  "author": "easrng",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/easrng/elements.git"
+  },
+  "bugs": {
+    "url": "https://github.com/easrng/elements/issues"
+  },
+  "homepage": "https://github.com/easrng/elements#readme"
+}
