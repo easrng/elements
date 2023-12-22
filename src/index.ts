@@ -9,7 +9,7 @@ type PropsBase = Partial<{
 	style: string | Record<string, unknown>;
 }>;
 export type Props = PropsBase & {
-	children?: Child[];
+	children?: Child | Child[];
 };
 export type Component<T = PropsBase> = (
 	props: T & {
@@ -242,7 +242,7 @@ const jsx = (
 			if (prop === 'ref') {
 				(value as Signal).value = node;
 			} else if (prop === 'children') {
-				for (const child of value as Child[]) {
+				for (const child of [value].flat() as Child[]) {
 					if (child instanceof Signal) {
 						const anchor = document.createComment('⚓');
 						(node as Element).append(anchor, '');
