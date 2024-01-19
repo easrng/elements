@@ -1,0 +1,19 @@
+{
+  "prettier": true,
+  "space": true,
+  "rules": {
+    "max-params": "off",
+    "@typescript-eslint/no-confusing-void-expression": "off",
+    "@typescript-eslint/prefer-string-starts-ends-with": "off",
+    "max-depth": "off",
+    "unicorn/prefer-at": "off",
+    "unicorn/prefer-string-replace-all": "off",
+    "@typescript-eslint/prefer-nullish-coalescing": "off",
+    "eqeqeq": "off",
+    "no-sparse-arrays": "off",
+    "complexity": "off",
+    "@typescript-eslint/array-type": "off",
+    "symbol-description": "off",
+    "unicorn/no-for-loop": "off"
+  }
+}
