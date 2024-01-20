@@ -1,8 +1,3 @@
-/* Frequently used globals */
-/* Check with terser + gzip to see if adding things here is actually worth it */
-const _null_ = null;
-const _document_ = document;
-
 /* This is a horrible hack but it makes the .d.ts valid */
 /* eslint-disable-next-line @typescript-eslint/naming-convention */
 type hooks = never;
@@ -13,10 +8,9 @@ type hooks = never;
  */
 /* eslint-disable-next-line @typescript-eslint/no-redeclare */
 const hooks: {
-  /** After parse callback, checks for unclosed tags */
+  /** After parse callback */
   p: (state: CurrentState) => Children;
-  /** Before close callback, checks for extra closing tags */
-  c?: (state: CurrentState) => unknown;
+  c?: any;
 } = {
   p: (state) => state.slice(1) as Children,
 };
@@ -55,7 +49,7 @@ const parse = function (statics: readonly string[]): Children {
   let mode = Mode.TEXT;
   let buffer = '';
   let quote = '';
-  let current: CurrentState = [,];
+  let current: CurrentState = [hooks.c];
   let char: string;
   let propName: string;
 
@@ -147,8 +141,7 @@ const parse = function (statics: readonly string[]): Children {
           current = current[0]!;
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions, @typescript-eslint/prefer-optional-chain
-        hooks.c && hooks.c(((mode as unknown as CurrentState) = current));
+        (mode as unknown as CurrentState) = current;
         (current = current[0]!).push(
           (mode as unknown as unknown[]).slice(1) as Ele,
         );
@@ -192,8 +185,8 @@ declare global {
 }
 const setStyle = (style: CSSStyleDeclaration, key: string, value: unknown) => {
   if (key[0] == '-') {
-    style.setProperty(key, value == _null_ ? '' : String(value));
-  } else if (value == _null_) {
+    style.setProperty(key, value == null ? '' : String(value));
+  } else if (value == null) {
     (style as any)[key] = '';
   } else if (typeof value != 'number' || isNonDimensional.test(key)) {
     (style as any)[key] = value;
@@ -291,7 +284,7 @@ const setProperty = (
         }
 
         /* eslint-disable-next-line @typescript-eslint/no-unsafe-assignment */
-        (dom as any)[name] = value == _null_ ? '' : value;
+        (dom as any)[name] = value == null ? '' : value;
         return;
       } catch {
         /* ignore */
@@ -307,7 +300,7 @@ const setProperty = (
 
     if (/function|symbol/.test(typeof value)) {
       /* Never serialize functions as attribute values */
-    } else if (value != _null_ && (value !== false || name[4] == '-')) {
+    } else if (value != null && (value !== false || name[4] == '-')) {
       dom.setAttribute(name, value as string);
     } else {
       dom.removeAttribute(name);
@@ -341,12 +334,12 @@ function template(strings: TemplateStringsArray) {
           l: location,
           h: lastHole++,
         });
-        node = _document_.createComment('');
+        node = document.createComment('');
       } else if (typeof child == 'string') {
         if ((node = parent.lastChild) && node.nodeType == 3) {
           node.nodeValue += child;
         } else {
-          node = _document_.createTextNode(child);
+          node = document.createTextNode(child);
         }
       } else {
         /* `child` is Ele */
@@ -355,7 +348,7 @@ function template(strings: TemplateStringsArray) {
           throw new Error('components are not implemented');
         }
 
-        node = _document_.createElement(type);
+        node = document.createElement(type);
         for (const prop of props) {
           if (prop.includes(holeOrListenersOrFragEnd)) {
             toUpdate.push({
@@ -370,7 +363,7 @@ function template(strings: TemplateStringsArray) {
           } else {
             const name = prop[0];
             const value = prop.length > 2 ? prop.slice(1).join('') : prop[1];
-            setProperty(node, name, _null_, value, (_?: never) =>
+            setProperty(node, name, null, value, (_?: never) =>
               toUpdate.push({
                 l: location,
                 p: [name, [0, value]],
@@ -386,7 +379,7 @@ function template(strings: TemplateStringsArray) {
     }
   }
 
-  const frag = _document_.createDocumentFragment();
+  const frag = document.createDocumentFragment();
   appendChildren(frag, children, []);
   return {
     f: frag,
@@ -395,7 +388,7 @@ function template(strings: TemplateStringsArray) {
 }
 
 const cache = new WeakMap<TemplateStringsArray, Template>();
-function html(strings: TemplateStringsArray, ...holes: (string | Node)[]) {
+function html(strings: TemplateStringsArray, ...holes: unknown[]) {
   let tmpl = cache.get(strings);
   if (!tmpl) {
     cache.set(strings, (tmpl = template(strings)));
@@ -411,7 +404,7 @@ function html(strings: TemplateStringsArray, ...holes: (string | Node)[]) {
     /* If update.h is undefined this is NaN which is falsy, if it's 0 it's still true, which saves space :D */
     if (update.h! + 1) {
       const hole = holes[update.h!]!;
-      node.replaceWith(hole);
+      node.replaceWith(hole as string | Node);
     }
 
     if (update.p) {
@@ -425,7 +418,7 @@ function html(strings: TemplateStringsArray, ...holes: (string | Node)[]) {
       setProperty(
         node as Element,
         name as string,
-        _null_,
+        null,
         value.length > 1 ? value.join('') : value[0],
       );
     }
