@@ -1,10 +1,10 @@
 import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
-import {type RollupOptions} from 'rollup';
+import {type RollupOptions, type OutputOptions} from 'rollup';
 
 const input = ['src/index.ts', 'src/debug.ts'];
 
-const config: RollupOptions = {
+const config: RollupOptions & {output: OutputOptions} = {
   input,
   output: {
     dir: 'dist',

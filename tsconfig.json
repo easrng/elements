@@ -5,6 +5,7 @@
     "moduleResolution": "Bundler",
     "moduleDetection": "force",
     "target": "ESNext",
+    "allowImportingTsExtensions": true,
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "declaration": true,
     "pretty": true,
@@ -20,7 +21,7 @@
     "noEmit": true,
     "useDefineForClassFields": true,
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
   },
-  "include": ["src"]
+  "include": ["src", "tools"],
 }

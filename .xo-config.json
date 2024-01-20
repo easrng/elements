@@ -5,6 +5,7 @@
     "max-params": "off",
     "@typescript-eslint/no-confusing-void-expression": "off",
     "@typescript-eslint/prefer-string-starts-ends-with": "off",
+    "unicorn/prefer-string-starts-ends-with": "off",
     "max-depth": "off",
     "unicorn/prefer-at": "off",
     "unicorn/prefer-string-replace-all": "off",
@@ -14,6 +15,8 @@
     "complexity": "off",
     "@typescript-eslint/array-type": "off",
     "symbol-description": "off",
-    "unicorn/no-for-loop": "off"
+    "unicorn/no-for-loop": "off",
+    "n/file-extension-in-import": "off",
+    "import/no-unassigned-import": "off"
   }
 }

@@ -8,20 +8,26 @@ const _document_ = document;
 type hooks = never;
 
 /**
- * Hooks for debug package
+ * Hooks for debug
  * @internal
  */
 /* eslint-disable-next-line @typescript-eslint/no-redeclare */
 const hooks: {
-  /** After parse callback */
+  /** After parse callback, checks for unclosed tags */
   p: (state: CurrentState) => Children;
+  /** Before close callback, checks for extra closing tags */
+  c?: (state: CurrentState) => unknown;
 } = {
   p: (state) => state.slice(1) as Children,
 };
 
 /* Reused */
-/** In the parser it represents ${holes} and in the DOM it's the key listeners are stored on */
-const holeOrListeners = Symbol();
+/**
+ * In the parser it represents ${holes},
+ * on elements it's the event handler map,
+ * on comments it points to the end of the fragment
+ */
+const holeOrListenersOrFragEnd = Symbol();
 
 /* HTM parser */
 const enum Mode {
@@ -33,7 +39,7 @@ const enum Mode {
   PROP_SET = 5,
   PROP_APPEND = 6,
 }
-type StringOrHole = string | typeof holeOrListeners;
+type StringOrHole = string | typeof holeOrListenersOrFragEnd;
 type Props = [string, ...(StringOrHole | true)[]][];
 type Ele = [StringOrHole, Props, ...unknown[]];
 /**
@@ -58,11 +64,11 @@ const parse = function (statics: readonly string[]): Children {
       mode == Mode.TEXT &&
       (field || (buffer = buffer.replace(/^\s*\n\s*|\s*\n\s*$/g, '')))
     ) {
-      current.push(field ? holeOrListeners : buffer);
+      current.push(field ? holeOrListenersOrFragEnd : buffer);
     } else if (!current[0]) {
       /* Top level */
     } else if (mode == Mode.TAGNAME && (field || buffer)) {
-      current[1] = field ? holeOrListeners : buffer;
+      current[1] = field ? holeOrListenersOrFragEnd : buffer;
       mode = Mode.WHITESPACE;
     } else if (mode == Mode.WHITESPACE && buffer && !field) {
       current[2].push([buffer, true]);
@@ -71,14 +77,14 @@ const parse = function (statics: readonly string[]): Children {
         current[2].push(
           field
             ? buffer
-              ? [propName, buffer, holeOrListeners]
-              : [propName, holeOrListeners]
+              ? [propName, buffer, holeOrListenersOrFragEnd]
+              : [propName, holeOrListenersOrFragEnd]
             : [propName, buffer],
         );
         mode = Mode.PROP_APPEND;
       } else if (field || buffer) {
         current[2][current[2].length - 1]!.push(
-          ...(field ? ([buffer, holeOrListeners] as const) : [buffer]),
+          ...(field ? ([buffer, holeOrListenersOrFragEnd] as const) : [buffer]),
         );
       }
     }
@@ -141,7 +147,8 @@ const parse = function (statics: readonly string[]): Children {
           current = current[0]!;
         }
 
-        (mode as unknown as CurrentState) = current;
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions, @typescript-eslint/prefer-optional-chain
+        hooks.c && hooks.c(((mode as unknown as CurrentState) = current));
         (current = current[0]!).push(
           (mode as unknown as unknown[]).slice(1) as Ele,
         );
@@ -176,7 +183,11 @@ type Handler = (event: Event) => unknown;
 declare global {
   /* eslint-disable-next-line @typescript-eslint/consistent-type-definitions */
   interface Element {
-    [holeOrListeners]: Record<string, Handler>;
+    [holeOrListenersOrFragEnd]: Record<string, Handler>;
+  }
+  /* eslint-disable-next-line @typescript-eslint/consistent-type-definitions */
+  interface Comment {
+    [holeOrListenersOrFragEnd]: Comment;
   }
 }
 const setStyle = (style: CSSStyleDeclaration, key: string, value: unknown) => {
@@ -192,11 +203,11 @@ const setStyle = (style: CSSStyleDeclaration, key: string, value: unknown) => {
 };
 
 function eventProxyCapture(this: Element, event: Event) {
-  return this[holeOrListeners][event.type + true]!(event);
+  return this[holeOrListenersOrFragEnd][event.type + true]!(event);
 }
 
 function eventProxy(this: Element, event: Event) {
-  return this[holeOrListeners][event.type + false]!(event);
+  return this[holeOrListenersOrFragEnd][event.type + false]!(event);
 }
 
 const setProperty = (
@@ -240,7 +251,7 @@ const setProperty = (
         }
       }
     }
-  } else if (name[0] == 'o' && name[1] == 'n') {
+  } else if (/^on/.test(name)) {
     if (hydrate) {
       return hydrate();
     }
@@ -253,11 +264,11 @@ const setProperty = (
     useCapture =
       name != (name = name.replace(/(PointerCapture)$|Capture$/, '$1'));
 
-    if (!dom[holeOrListeners]) {
-      dom[holeOrListeners] = {};
+    if (!dom[holeOrListenersOrFragEnd]) {
+      dom[holeOrListenersOrFragEnd] = {};
     }
 
-    dom[holeOrListeners][name + useCapture] = value as Handler;
+    dom[holeOrListenersOrFragEnd][name + useCapture] = value as Handler;
 
     const handler = useCapture ? eventProxyCapture : eventProxy;
     if (value) {
@@ -325,7 +336,7 @@ function template(strings: TemplateStringsArray) {
     for (const child of children) {
       const location = [...l, parent.childNodes.length];
       let node;
-      if (child === holeOrListeners) {
+      if (child === holeOrListenersOrFragEnd) {
         toUpdate.push({
           l: location,
           h: lastHole++,
@@ -340,18 +351,20 @@ function template(strings: TemplateStringsArray) {
       } else {
         /* `child` is Ele */
         const [type, props, ...children] = child;
-        if (type == holeOrListeners) {
+        if (type == holeOrListenersOrFragEnd) {
           throw new Error('components are not implemented');
         }
 
         node = _document_.createElement(type);
         for (const prop of props) {
-          if (prop.includes(holeOrListeners)) {
+          if (prop.includes(holeOrListenersOrFragEnd)) {
             toUpdate.push({
               l: location,
               /* eslint-disable-next-line @typescript-eslint/no-loop-func */
               p: prop.map((propPart) =>
-                propPart == holeOrListeners ? [1, lastHole++] : propPart,
+                propPart == holeOrListenersOrFragEnd
+                  ? [1, lastHole++]
+                  : propPart,
               ),
             });
           } else {
@@ -416,6 +429,14 @@ function html(strings: TemplateStringsArray, ...holes: (string | Node)[]) {
         value.length > 1 ? value.join('') : value[0],
       );
     }
+  }
+
+  if (fragment.childNodes.length > 1) {
+    const close = document.createComment('');
+    const open = document.createComment('');
+    open[holeOrListenersOrFragEnd] = close;
+    fragment.prepend(open);
+    fragment.append(close);
   }
 
   return fragment;
