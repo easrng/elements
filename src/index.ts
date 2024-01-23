@@ -9,7 +9,7 @@ type hooks = never;
 /* eslint-disable-next-line @typescript-eslint/no-redeclare */
 const hooks: {
   /** After parse callback */
-  p: (state: CurrentState) => Children;
+  p: (state: CurrentState, mode: Mode) => Children;
   c?: any;
 } = {
   p: (state) => state.slice(1) as Children,
@@ -162,7 +162,7 @@ const parse = function (statics: readonly string[]): Children {
   }
 
   commit();
-  return hooks.p(current);
+  return hooks.p(current, mode);
 };
 
 /* Framework */
@@ -174,11 +174,9 @@ type Handler = (event: Event) => unknown;
  * @internal
  */
 declare global {
-  /* eslint-disable-next-line @typescript-eslint/consistent-type-definitions */
   interface Element {
     [holeOrListenersOrFragEnd]: Record<string, Handler>;
   }
-  /* eslint-disable-next-line @typescript-eslint/consistent-type-definitions */
   interface Comment {
     [holeOrListenersOrFragEnd]: Comment;
   }
@@ -308,31 +306,59 @@ const setProperty = (
   }
 };
 
+type UpdateProp = (string | true | [1, number] | [0, unknown])[];
+type Update = {
+  /** Location of the node in the DOM fragment */
+  e: Location;
+} & (
+  | {
+      /** Hole to replace node with */
+      t: number;
+      n?: undefined;
+      o?: undefined;
+      s?: undefined;
+      r?: undefined;
+      l?: undefined;
+    }
+  | {
+      t?: undefined;
+      /** Property to set on node after clone. Format is [name, ...valueParts[]] */
+      n: UpdateProp;
+      o?: undefined;
+      s?: undefined;
+      r?: undefined;
+      l?: undefined;
+    }
+  | {
+      t?: undefined;
+      n?: undefined;
+      /** Hole to be component */
+      o: number;
+      /** Component props */
+      s: UpdateProp[];
+      /** Component children */
+      r: DocumentFragment;
+      /** ToUpdate */
+      l: Update[];
+    }
+);
 type Template = ReturnType<typeof template>;
-function template(strings: TemplateStringsArray) {
+function template(strings: readonly string[]) {
   const children = parse(strings);
   let lastHole = 0;
-  type Update = {
-    /** Location of the node in the DOM fragment */
-    l: Location;
-    /** Property to set on node after clone. Format is [name, ...valueParts[]] */
-    p?: (string | true | [1, number] | [0, unknown])[];
-    /** Hole to replace node with */
-    h?: number;
-  };
-  const toUpdate: Update[] = [];
   function appendChildren(
     parent: Element | DocumentFragment,
     children: Children,
     l: Location,
+    toUpdate: Update[],
   ) {
     for (const child of children) {
       const location = [...l, parent.childNodes.length];
       let node;
       if (child === holeOrListenersOrFragEnd) {
         toUpdate.push({
-          l: location,
-          h: lastHole++,
+          e: location,
+          t: lastHole++,
         });
         node = document.createComment('');
       } else if (typeof child == 'string') {
@@ -344,35 +370,52 @@ function template(strings: TemplateStringsArray) {
       } else {
         /* `child` is Ele */
         const [type, props, ...children] = child;
-        if (type == holeOrListenersOrFragEnd) {
-          throw new Error('components are not implemented');
-        }
-
-        node = document.createElement(type);
-        for (const prop of props) {
-          if (prop.includes(holeOrListenersOrFragEnd)) {
-            toUpdate.push({
-              l: location,
-              /* eslint-disable-next-line @typescript-eslint/no-loop-func */
-              p: prop.map((propPart) =>
+        if (type === holeOrListenersOrFragEnd) {
+          const childrenFrag = document.createDocumentFragment();
+          const childUpdates: Update[] = [];
+          toUpdate.push({
+            e: location,
+            o: lastHole++,
+            r: childrenFrag,
+            // eslint-disable-next-line @typescript-eslint/no-loop-func
+            s: props.map((prop) =>
+              prop.map((propPart) =>
                 propPart == holeOrListenersOrFragEnd
                   ? [1, lastHole++]
                   : propPart,
               ),
-            });
-          } else {
-            const name = prop[0];
-            const value = prop.length > 2 ? prop.slice(1).join('') : prop[1];
-            setProperty(node, name, null, value, (_?: never) =>
+            ),
+            l: childUpdates,
+          });
+          appendChildren(childrenFrag, children as Children, [], childUpdates);
+          node = document.createComment('');
+        } else {
+          node = document.createElement(type);
+          for (const prop of props) {
+            if (prop.includes(holeOrListenersOrFragEnd)) {
               toUpdate.push({
-                l: location,
-                p: [name, [0, value]],
-              }),
-            );
+                e: location,
+                /* eslint-disable-next-line @typescript-eslint/no-loop-func */
+                n: prop.map((propPart) =>
+                  propPart == holeOrListenersOrFragEnd
+                    ? [1, lastHole++]
+                    : propPart,
+                ),
+              });
+            } else {
+              const name = prop[0];
+              const value = prop.length > 2 ? prop.slice(1).join('') : prop[1];
+              setProperty(node, name, null, value, (_?: never) =>
+                toUpdate.push({
+                  e: location,
+                  n: [name, [0, value]],
+                }),
+              );
+            }
           }
-        }
 
-        appendChildren(node, children as Children, location);
+          appendChildren(node, children as Children, location, toUpdate);
+        }
       }
 
       parent.append(node);
@@ -380,49 +423,66 @@ function template(strings: TemplateStringsArray) {
   }
 
   const frag = document.createDocumentFragment();
-  appendChildren(frag, children, []);
+  const toUpdate: Update[] = [];
+  appendChildren(frag, children, [], toUpdate);
   return {
-    f: frag,
-    u: toUpdate,
+    e: frag,
+    t: toUpdate,
   };
 }
 
-const cache = new WeakMap<TemplateStringsArray, Template>();
-function html(strings: TemplateStringsArray, ...holes: unknown[]) {
-  let tmpl = cache.get(strings);
-  if (!tmpl) {
-    cache.set(strings, (tmpl = template(strings)));
-  }
-
-  const fragment = tmpl.f.cloneNode(true) as DocumentFragment;
-  for (const update of tmpl.u) {
+function applyUpdates(
+  fragment: DocumentFragment,
+  updates: Update[],
+  holes: unknown[],
+) {
+  for (const update of updates) {
     /* eslint-disable-next-line unicorn/no-array-reduce */
-    const node = update.l.reduce<DocumentFragment | ChildNode>(
+    const node = update.e.reduce<DocumentFragment | ChildNode>(
       (node, i) => node.childNodes[i]!,
       fragment,
     ) as ChildNode;
-    /* If update.h is undefined this is NaN which is falsy, if it's 0 it's still true, which saves space :D */
-    if (update.h! + 1) {
-      const hole = holes[update.h!]!;
-      node.replaceWith(hole as string | Node);
-    }
-
-    if (update.p) {
-      const [name, ...value] = update.p.map((propPart) =>
+    const parseUpdateProp = (updateProp: UpdateProp) => {
+      const [name, ...value] = updateProp.map((propPart) =>
         Array.isArray(propPart)
           ? propPart[0]
             ? holes[propPart[1]]
             : propPart[1]
           : propPart,
       );
-      setProperty(
-        node as Element,
-        name as string,
-        null,
-        value.length > 1 ? value.join('') : value[0],
+      return [name, value.length > 1 ? value.join('') : value[0]];
+    };
+
+    /* If update.h is undefined this is NaN which is falsy, if it's 0 it's still true, which saves space :D */
+    if (update.t! + 1) {
+      const hole = holes[update.t!]!;
+      node.replaceWith(hole as string | Node);
+    } else if (update.n) {
+      const [name, value] = parseUpdateProp(update.n);
+      setProperty(node as Element, name as string, null, value);
+    } else {
+      // Component
+      applyUpdates(update.r!, update.l!, holes);
+      node.replaceWith(
+        (holes[update.o!] as (_: unknown) => Node | string)({
+          // eslint-disable-next-line unicorn/no-array-callback-reference
+          ...Object.fromEntries(update.s!.map(parseUpdateProp)),
+          children: update.r,
+        }),
       );
     }
   }
+}
+
+const cache = new WeakMap<readonly string[], Template>();
+function html(strings: readonly string[], ...holes: unknown[]) {
+  let tmpl = cache.get(strings);
+  if (!tmpl) {
+    cache.set(strings, (tmpl = template(strings)));
+  }
+
+  const fragment = tmpl.e.cloneNode(true) as DocumentFragment;
+  applyUpdates(fragment, tmpl.t, holes);
 
   if (fragment.childNodes.length > 1) {
     const close = document.createComment('');

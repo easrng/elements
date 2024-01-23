@@ -6,13 +6,21 @@ const cases = {
   'valid html with no holes'() {
     document.body.append(html`<h1 title="uwu">hover me for uwu</h1>`);
   },
+  'valid html with content holes'() {
+    document.body.append(html`<h1 title="uwu">hover ${'meeeee'} for uwu</h1>`);
+  },
   '!missing closing tag'() {
-    document.body.append(html`<h1>should not show up</h1>`);
+    // prettier-ignore
+    document.body.append(html`<h1>should not show up`);
+  },
+  '!missing comment close'() {
+    // prettier-ignore
+    document.body.append(html`<!-- should not show up`);
   },
   '!extra closing tag'() {
     document.body.append(html`<h1>should not show up</h1></`);
   },
-  holes() {
+  'props with holes'() {
     document.body.append(html`<h1 style=${{color: 'red'}}>i am red</h1>`);
   },
   'props mix static and holes'() {
@@ -22,6 +30,19 @@ const cases = {
     document.body.append(
       html`<button onClick=${() => alert('hello!')}>i am clickable</button>`,
     );
+  },
+  'render component'() {
+    const box = ({color, children}: {color: string; children: Node}) => html`
+      <div style=${{backgroundColor: color, color: '#fff', padding: '0.5em'}}>
+        ${children}
+      </div>
+    `;
+    document.body.append(
+      html`<${box} color="darkred">some red stuff <button onClick=${() => alert('hello!')}>i am clickable</button></>`,
+    );
+  },
+  'render fragment'() {
+    document.body.append(html`<span>awawa</span>!`);
   },
 };
 for (let [name, test] of Object.entries(cases)) {
