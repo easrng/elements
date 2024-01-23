@@ -22,6 +22,7 @@
     "useDefineForClassFields": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
+    "stripInternal": true
   },
   "include": ["src", "tools"],
 }
