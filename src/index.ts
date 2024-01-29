@@ -9,10 +9,30 @@ type hooks = never;
 /* eslint-disable-next-line @typescript-eslint/no-redeclare */
 const hooks: {
   /** After parse callback */
-  p: (state: CurrentState, mode: Mode) => Children;
-  c?: any;
+  e: (state: CurrentState, mode: Mode) => Children;
+  /** Close detector */
+  t?: any;
+  /** HTML template processor */
+  n: (
+    fragment: DocumentFragment,
+    updates: Update[],
+    holes: unknown[],
+  ) => DocumentFragment;
 } = {
-  p: (state) => state.slice(1) as Children,
+  e: (state) => state.slice(1) as Children,
+  n: (fragment, toUpdate, holes) => {
+    applyUpdates(fragment, toUpdate, holes);
+
+    if (fragment.childNodes.length > 1) {
+      const close = document.createComment('');
+      const open = document.createComment('');
+      open[holeOrListenersOrFragEnd] = close;
+      fragment.prepend(open);
+      fragment.append(close);
+    }
+
+    return fragment;
+  },
 };
 
 /* Reused */
@@ -49,7 +69,7 @@ const parse = function (statics: readonly string[]): Children {
   let mode = Mode.TEXT;
   let buffer = '';
   let quote = '';
-  let current: CurrentState = [hooks.c];
+  let current: CurrentState = [hooks.t];
   let char: string;
   let propName: string;
 
@@ -162,7 +182,7 @@ const parse = function (statics: readonly string[]): Children {
   }
 
   commit();
-  return hooks.p(current, mode);
+  return hooks.e(current, mode);
 };
 
 /* Framework */
@@ -436,39 +456,57 @@ function applyUpdates(
   updates: Update[],
   holes: unknown[],
 ) {
+  const parseUpdateProp = (updateProp: UpdateProp) => {
+    const [name, ...value] = updateProp.map((propPart) =>
+      Array.isArray(propPart)
+        ? propPart[0]
+          ? holes[propPart[1]]
+          : propPart[1]
+        : propPart,
+    );
+    return [name, value.length > 1 ? value.join('') : value[0]];
+  };
+
+  const holeToNode = (hole: unknown) => {
+    const frag = document.createDocumentFragment();
+    frag.append(
+      ...((
+        (Array.isArray(hole)
+          ? hole.flat(Number.POSITIVE_INFINITY)
+          : [hole]) as unknown[]
+      ).filter(
+        (item) => item && !/boolean|function|symbol/.test(typeof item),
+      ) as (string | Node)[]),
+    );
+    return frag;
+  };
+
   for (const update of updates) {
     /* eslint-disable-next-line unicorn/no-array-reduce */
     const node = update.e.reduce<DocumentFragment | ChildNode>(
       (node, i) => node.childNodes[i]!,
       fragment,
     ) as ChildNode;
-    const parseUpdateProp = (updateProp: UpdateProp) => {
-      const [name, ...value] = updateProp.map((propPart) =>
-        Array.isArray(propPart)
-          ? propPart[0]
-            ? holes[propPart[1]]
-            : propPart[1]
-          : propPart,
-      );
-      return [name, value.length > 1 ? value.join('') : value[0]];
-    };
 
-    /* If update.h is undefined this is NaN which is falsy, if it's 0 it's still true, which saves space :D */
+    /* If update.t is undefined this is NaN which is falsy, if it's 0 it's still true, which saves space :D */
     if (update.t! + 1) {
       const hole = holes[update.t!]!;
-      node.replaceWith(hole as string | Node);
+      node.replaceWith(holeToNode(hole));
     } else if (update.n) {
       const [name, value] = parseUpdateProp(update.n);
       setProperty(node as Element, name as string, null, value);
     } else {
       // Component
-      applyUpdates(update.r!, update.l!, holes);
+      const children = update.r!.cloneNode(true) as DocumentFragment;
+      applyUpdates(children, update.l!, holes);
       node.replaceWith(
-        (holes[update.o!] as (_: unknown) => Node | string)({
-          // eslint-disable-next-line unicorn/no-array-callback-reference
-          ...Object.fromEntries(update.s!.map(parseUpdateProp)),
-          children: update.r,
-        }),
+        holeToNode(
+          (holes[update.o!] as (_: unknown) => Node | string)({
+            // eslint-disable-next-line unicorn/no-array-callback-reference
+            ...Object.fromEntries(update.s!.map(parseUpdateProp)),
+            children,
+          }),
+        ),
       );
     }
   }
@@ -481,18 +519,7 @@ function html(strings: readonly string[], ...holes: unknown[]) {
     cache.set(strings, (tmpl = template(strings)));
   }
 
-  const fragment = tmpl.e.cloneNode(true) as DocumentFragment;
-  applyUpdates(fragment, tmpl.t, holes);
-
-  if (fragment.childNodes.length > 1) {
-    const close = document.createComment('');
-    const open = document.createComment('');
-    open[holeOrListenersOrFragEnd] = close;
-    fragment.prepend(open);
-    fragment.append(close);
-  }
-
-  return fragment;
+  return hooks.n(tmpl.e.cloneNode(true) as DocumentFragment, tmpl.t, holes);
 }
 
 export {hooks as _h, html};

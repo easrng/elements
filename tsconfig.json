@@ -22,7 +22,8 @@
     "useDefineForClassFields": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "stripInternal": true
+    "stripInternal": true,
   },
   "include": ["src", "tools"],
+  "exclude": ["tools/stream-test"],
 }

@@ -19,6 +19,8 @@
     "n/file-extension-in-import": "off",
     "import/no-unassigned-import": "off",
     "no-eq-null": "off",
-    "@typescript-eslint/consistent-type-definitions": "off"
-  }
+    "@typescript-eslint/consistent-type-definitions": "off",
+    "object-shorthand": "off"
+  },
+  "ignores": ["tools/stream-test"]
 }

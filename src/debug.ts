@@ -1,20 +1,20 @@
 import {_h, type Children} from './index.js';
 
-type Mode = Parameters<typeof _h.p>[1];
+type Mode = Parameters<typeof _h.e>[1];
 const comment = 4 as Mode;
-_h.p = (state, mode) => {
+_h.e = (state, mode) => {
   if (mode === comment) {
     throw new Error('unclosed comment');
   }
 
-  if (state[0] && state[0] !== _h.c) {
+  if (state[0] && state[0] !== _h.t) {
     throw new Error('unclosed <' + state[1].toString() + '> tag');
   }
 
   return state.slice(1) as Children;
 };
 
-_h.c = new Proxy(
+_h.t = new Proxy(
   {},
   {
     get() {
