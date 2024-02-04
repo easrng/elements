@@ -7,6 +7,7 @@ const input = [
   'src/debug.ts',
   'src/server.ts',
   'src/elements.ts',
+  'src/minify.ts',
 ];
 
 const config: RollupOptions & {output: OutputOptions} = {

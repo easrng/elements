@@ -14,12 +14,24 @@ declare global {
 const document_ = new DOMParser().parseFromString('', 'text/html')!;
 (globalThis as unknown as Record<'document', typeof document>).document = document_;
 
-const box = ({color, children}: {color: string; children: Node}) => html`
-  <div style=${{backgroundColor: color, color: '#fff', padding: '0.5em'}}>
-    ${children}
-  </div>
-`;
-const delay = async ({
+const box = ({
+  color,
+  text,
+  children,
+}: {
+  color: string;
+  text: string;
+  children: Node;
+}) => {
+  return html`
+    <div
+      style=${{backgroundColor: color, color: text || '#fff', padding: '0.5em'}}
+    >
+      ${children}
+    </div>
+  `;
+};
+const delay = ({
   duration,
   children,
   signal
@@ -46,11 +58,7 @@ Deno.serve(
   (_request) =>
     new Response(
       stream(
-        html`<html><head><title>${'Hello World!'}</title></head><body><h1 style=${{color: 'red'}}>i am red</h1><${box} color="darkred">some red stuff <button>i am clickable</button></><h2>slow:</h2>${Array.from(
-          {length: 60},
-        ).map((e, i) => {
-          return html`<${delay} duration="${i * 1000}">${i}</>`;
-        })}</body></html>`,
+        html`<html><head><title>${'Hello World!'}</title></head><body><h1 ...${{style:{color: 'red'}}} title="hovered!">i am red and hoverable</h1><${box} color="darkred" ...${{text: 'pink'}}>some red stuff <button>i am clickable</button></><div>${html`<b>fragment</b>!`}</div><h2>slow:</h2><${delay} duration="${2000}">waited 2 seconds</></body></html>`,
       ),
       {
         headers: {

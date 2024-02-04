@@ -58,6 +58,15 @@ const propToHtml: Record<string, string> = {
 const htmlLowerCase =
   /^accessK|^auto[A-Z]|^ch|^col|cont|cross|dateT|encT|form[A-Z]|frame|hrefL|inputM|maxL|minL|noV|playsI|readO|rowS|spellC|src[A-Z]|tabI|item[A-Z]/;
 const setProperty = (dom: Element, name: string, value: any) => {
+  if (name == '...') {
+    /* eslint-disable-next-line guard-for-in */
+    for (const spreadName in value) {
+      setProperty(dom, spreadName, value[spreadName]);
+    }
+
+    return;
+  }
+
   if (name == 'style' && typeof value != 'string' && value) {
     value = styleObjectToCss(value as Record<string, unknown>);
   }
@@ -94,7 +103,7 @@ function* renderStream(
   holes: unknown[],
   signal: AbortSignal,
 ): Generator<string | ComponentThenable, void, string | Node | undefined> {
-  const parseUpdateProp = (updateProp: UpdateProp) => {
+  const parseUpdateProp = (updateProp: UpdateProp): [string, unknown] => {
     const [name, ...value] = updateProp.map((propPart) =>
       Array.isArray(propPart)
         ? propPart[0]
@@ -102,7 +111,7 @@ function* renderStream(
           : propPart[1]
         : propPart,
     );
-    return [name, value.length > 1 ? value.join('') : value[0]];
+    return [name as string, value.length > 1 ? value.join('') : value[0]];
   };
 
   function renderBasic(node: Node | string) {
@@ -149,7 +158,7 @@ function* renderStream(
               break render;
             } else if (update.n) {
               const [name, value] = parseUpdateProp(update.n);
-              setProperty(child as Element, name as string, value);
+              setProperty(child as Element, name, value);
             } else {
               // Component
               const children: ChildrenNode = document.createComment('');
@@ -160,16 +169,19 @@ function* renderStream(
                   holes,
                   signal,
                 );
+              const props: any = {};
+              for (const item of update.s!) {
+                const [name, value] = parseUpdateProp(item);
+                Object.assign(props, name === '...' ? value : {[name]: value});
+              }
+
+              props.children = children;
+              props.signal = signal;
               let component = (
                 holes[update.o!] as (
                   _: unknown,
                 ) => Node | string | ComponentThenable
-              )({
-                // eslint-disable-next-line unicorn/no-array-callback-reference
-                ...Object.fromEntries(update.s!.map(parseUpdateProp)),
-                children,
-                signal,
-              });
+              )(props);
               if (typeof component === 'string') {
                 yield escapeString(component);
               } else {

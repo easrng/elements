@@ -2,12 +2,30 @@
 import {html} from '../../dist/elements.js';
 import '../../dist/debug.js';
 
+const box = ({
+  color,
+  text,
+  children,
+}: {
+  color: string;
+  text: string;
+  children: Node;
+}) => {
+  return html`
+    <div
+      style=${{backgroundColor: color, color: text || '#fff', padding: '0.5em'}}
+    >
+      ${children}
+    </div>
+  `;
+};
+
 const cases = {
   'valid html with no holes'() {
     document.body.append(html`<h1 title="uwu">hover me for uwu</h1>`);
   },
   'valid html with content holes'() {
-    document.body.append(html`<h1 title="uwu">hover ${'meeeee'} for uwu</h1>`);
+    document.body.append(html`<h1 title="owo">hover me for ${'owo'}</h1>`);
   },
   '!missing closing tag'() {
     // prettier-ignore
@@ -32,13 +50,18 @@ const cases = {
     );
   },
   'render component'() {
-    const box = ({color, children}: {color: string; children: Node}) => html`
-      <div style=${{backgroundColor: color, color: '#fff', padding: '0.5em'}}>
-        ${children}
-      </div>
-    `;
     document.body.append(
       html`<${box} color="darkred">some red stuff <button onClick=${() => alert('hello!')}>i am clickable</button></>`,
+    );
+  },
+  'spread component props'() {
+    document.body.append(
+      html`<${box} ...${{color: 'pink'}} ...${{text: 'red'}}>pink!</>`,
+    );
+  },
+  'spread element props'() {
+    document.body.append(
+      html`<div ...${{style: {color: 'red'}}} ...${{title: 'idk'}}>hover me</>`,
     );
   },
   'render fragment'() {

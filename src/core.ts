@@ -84,6 +84,8 @@ const parse = function (statics: readonly string[]): Children {
     } else if (mode == Mode.TAGNAME && (field || buffer)) {
       current[1] = field ? holeOrListenersOrFragEnd : buffer;
       mode = Mode.WHITESPACE;
+    } else if (mode == Mode.WHITESPACE && buffer == '...' && field) {
+      current[2].push(['...', holeOrListenersOrFragEnd]);
     } else if (mode == Mode.WHITESPACE && buffer && !field) {
       current[2].push([buffer, true]);
     } else if (mode >= Mode.PROP_SET) {
@@ -229,7 +231,24 @@ const setProperty = (
   hydrate?: () => void,
 ) => {
   let useCapture: boolean | string;
-  if (name == 'style') {
+  if (name == '...') {
+    if (hydrate) {
+      return hydrate();
+    }
+
+    /* eslint-disable-next-line guard-for-in */
+    for (const spreadName in value) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const oldSpreadValue = oldValue
+        ? spreadName in oldValue
+          ? oldValue[spreadName]
+          : null
+        : null;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const spreadValue = value[spreadName];
+      setProperty(dom, spreadName, oldSpreadValue, spreadValue);
+    }
+  } else if (name == 'style') {
     if (hydrate) {
       return hydrate();
     }
@@ -456,7 +475,7 @@ function applyUpdates(
   updates: Update[],
   holes: unknown[],
 ) {
-  const parseUpdateProp = (updateProp: UpdateProp) => {
+  const parseUpdateProp = (updateProp: UpdateProp): [string, unknown] => {
     const [name, ...value] = updateProp.map((propPart) =>
       Array.isArray(propPart)
         ? propPart[0]
@@ -464,7 +483,7 @@ function applyUpdates(
           : propPart[1]
         : propPart,
     );
-    return [name, value.length > 1 ? value.join('') : value[0]];
+    return [name as string, value.length > 1 ? value.join('') : value[0]];
   };
 
   const holeToNode = (hole: unknown) => {
@@ -494,19 +513,20 @@ function applyUpdates(
       node.replaceWith(holeToNode(hole));
     } else if (update.n) {
       const [name, value] = parseUpdateProp(update.n);
-      setProperty(node as Element, name as string, null, value);
+      setProperty(node as Element, name, null, value);
     } else {
       // Component
       const children = update.r!.cloneNode(true) as DocumentFragment;
       applyUpdates(children, update.l!, holes);
+      const props: any = {};
+      for (const item of update.s!) {
+        const [name, value] = parseUpdateProp(item);
+        Object.assign(props, name === '...' ? value : {[name]: value});
+      }
+
+      props.children = children;
       node.replaceWith(
-        holeToNode(
-          (holes[update.o!] as (_: unknown) => Node | string)({
-            // eslint-disable-next-line unicorn/no-array-callback-reference
-            ...Object.fromEntries(update.s!.map(parseUpdateProp)),
-            children,
-          }),
-        ),
+        holeToNode((holes[update.o!] as (_: unknown) => Node | string)(props)),
       );
     }
   }
