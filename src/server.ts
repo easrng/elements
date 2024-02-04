@@ -1,4 +1,4 @@
-import {_h} from './index.js';
+import {_h} from './core.js';
 
 type Update = Parameters<typeof _h.n>[1][0];
 type Template = [DocumentFragment, Update[], unknown[]];
@@ -28,7 +28,7 @@ type UpdateProp = Exclude<Update['n'], undefined>;
 const jsToCss: Record<string, string> = {};
 const isNonDimensional =
   /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i;
-export function styleObjectToCss(s: Record<string, unknown>) {
+function styleObjectToCss(s: Record<string, unknown>) {
   let string = '';
   for (const prop in s) {
     if (!Object.hasOwn(s, prop)) continue;

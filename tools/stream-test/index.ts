@@ -3,7 +3,7 @@ import {
   type Node,
   DocumentFragment as _DocumentFragment
 } from 'https://deno.land/x/deno_dom@v0.1.43/deno-dom-wasm.ts';
-import {html} from '../../dist/index.js';
+import {html} from '../../dist/elements.js';
 import {stream} from '../../dist/server.js';
 
 declare global {

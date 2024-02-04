@@ -1,13 +1,13 @@
 {
   "name": "@easrng/elements",
-  "version": "0.1.0-beta-8",
+  "version": "0.1.0-beta-9",
   "description": "a tiny framework powered by @preact/signals-core",
   "license": "MIT",
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "types": "./dist/elements.d.ts",
+      "default": "./dist/elements.js"
     },
     "./debug": {
       "types": "./dist/debug.d.ts",
@@ -59,5 +59,8 @@
     "url": "https://github.com/easrng/elements/issues"
   },
   "homepage": "https://github.com/easrng/elements#readme",
-  "pre-commit": "lint"
+  "pre-commit": "lint",
+  "esm.sh": {
+    "bundle": false
+  }
 }

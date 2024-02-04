@@ -1,4 +1,4 @@
-import {_h, type Children} from './index.js';
+import {_h, type Children} from './core.js';
 
 type Mode = Parameters<typeof _h.e>[1];
 const comment = 4 as Mode;

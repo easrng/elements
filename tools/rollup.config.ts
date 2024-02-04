@@ -2,7 +2,12 @@ import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
 import {type RollupOptions, type OutputOptions} from 'rollup';
 
-const input = ['src/index.ts', 'src/debug.ts', 'src/server.ts'];
+const input = [
+  'src/core.ts',
+  'src/debug.ts',
+  'src/server.ts',
+  'src/elements.ts',
+];
 
 const config: RollupOptions & {output: OutputOptions} = {
   input,

@@ -1,5 +1,5 @@
 /* eslint-disable no-alert */
-import {html} from '../../dist/index.js';
+import {html} from '../../dist/elements.js';
 import '../../dist/debug.js';
 
 const cases = {
