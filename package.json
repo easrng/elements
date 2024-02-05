@@ -1,6 +1,6 @@
 {
   "name": "@easrng/elements",
-  "version": "0.1.0-beta-10",
+  "version": "0.1.0-beta-11",
   "description": "a tiny framework powered by @preact/signals-core",
   "license": "MIT",
   "type": "module",
@@ -27,7 +27,8 @@
     "lint:tsc": "tsc",
     "fmt": "run-p fmt:*",
     "fmt:ts": "xo --fix",
-    "fmt:json": "prettier -w **/*.json"
+    "fmt:json": "prettier -w **/*.json",
+    "fuzz": "jsfuzz ./tools/fuzz-loader.cjs"
   },
   "files": [
     "dist"
@@ -39,9 +40,13 @@
     "@fastify/pre-commit": "^2.1.0",
     "@rollup/plugin-terser": "^0.4.4",
     "@rollup/plugin-typescript": "^11.1.6",
+    "@types/express": "^4.17.21",
     "@types/node": "^20.11.5",
     "cli-table3": "^0.6.3",
+    "express": "^4.18.2",
     "hotscript": "^1.0.13",
+    "jsfuzz": "^1.0.15",
+    "linkedom": "^0.16.8",
     "npm-run-all": "^4.1.5",
     "pretty-bytes": "^6.1.1",
     "rollup": "^4.9.5",

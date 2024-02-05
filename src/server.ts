@@ -96,12 +96,18 @@ const setProperty = (dom: Element, name: string, value: any) => {
 };
 
 type ComponentThenable = PromiseLike<Node | string>;
+const defaultOptions = {
+  /** Don't use <template> tags to render nodes to strings. Defaults to false. */
+  disableTemplate: false,
+};
+type Options = typeof defaultOptions;
 
 function* renderStream(
   node: ParentNode,
   updateTree: UpdateTree,
   holes: unknown[],
   signal: AbortSignal,
+  options: Options,
 ): Generator<string | ComponentThenable, void, string | Node | undefined> {
   const parseUpdateProp = (updateProp: UpdateProp): [string, unknown] => {
     const [name, ...value] = updateProp.map((propPart) =>
@@ -114,9 +120,10 @@ function* renderStream(
     return [name as string, value.length > 1 ? value.join('') : value[0]];
   };
 
-  function renderBasic(node: Node | string) {
-    const t = document.createElement('template');
-    t.content.append(
+  function renderBasic(node: Node | string, options: Options) {
+    const {disableTemplate} = options;
+    const t = document.createElement(disableTemplate ? 'div' : 'template');
+    (disableTemplate ? t : (t as HTMLTemplateElement).content).append(
       typeof node === 'object' && 'cloneNode' in node
         ? node.cloneNode(true)
         : node,
@@ -142,7 +149,7 @@ function* renderStream(
                 (item) => item && !/boolean|function|symbol/.test(typeof item),
               )) {
                 if (streamMap.has(node as Node)) {
-                  yield* streamNode(node as Node, signal);
+                  yield* streamNode(node as Node, signal, options);
                 } else if (
                   typeof node === 'object' &&
                   node &&
@@ -150,7 +157,7 @@ function* renderStream(
                 ) {
                   yield* (node as ChildrenNode).__children!();
                 } else {
-                  yield renderBasic(node as string | Node);
+                  yield renderBasic(node as string | Node, options);
                 }
               }
 
@@ -168,6 +175,7 @@ function* renderStream(
                   treeifyUpdates(update.l!),
                   holes,
                   signal,
+                  options,
                 );
               const props: any = {};
               for (const item of update.s!) {
@@ -192,7 +200,7 @@ function* renderStream(
                 if (typeof component === 'string') {
                   yield escapeString(component);
                 } else {
-                  yield* streamNode(component, signal);
+                  yield* streamNode(component, signal, options);
                 }
               }
             }
@@ -213,12 +221,18 @@ function* renderStream(
             const open = outer.slice(0, closeIndex - inner.length);
             const close = outer.slice(closeIndex);
             yield open;
-            yield* renderStream(child as Element, updateNode, holes, signal);
+            yield* renderStream(
+              child as Element,
+              updateNode,
+              holes,
+              signal,
+              options,
+            );
             yield close;
           }
         }
       } else {
-        yield renderBasic(child);
+        yield renderBasic(child, options);
       }
     }
   }
@@ -242,15 +256,25 @@ function treeifyUpdates(updates: Update[]) {
   return updateTree;
 }
 
-function* streamNode(node: Node, signal: AbortSignal) {
+function* streamNode(node: Node, signal: AbortSignal, options: Options) {
   const [fragment, updates, holes] = streamMap.get(node)!;
-  yield* renderStream(fragment, treeifyUpdates(updates), holes, signal);
+  yield* renderStream(
+    fragment,
+    treeifyUpdates(updates),
+    holes,
+    signal,
+    options,
+  );
 }
 
 const encoder = new TextEncoder();
-export function stream(node: Node) {
+export function stream(node: Node, options?: Partial<Options>) {
   const abortController = new AbortController();
-  const gen = streamNode(node, abortController.signal);
+  const gen = streamNode(
+    node,
+    abortController.signal,
+    Object.assign({}, defaultOptions, options),
+  );
   let passBack: string | Node | undefined;
   return new ReadableStream<Uint8Array>({
     start(controller) {

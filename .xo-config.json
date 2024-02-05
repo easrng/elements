@@ -22,5 +22,5 @@
     "@typescript-eslint/consistent-type-definitions": "off",
     "object-shorthand": "off"
   },
-  "ignores": ["tools/stream-test"]
+  "ignores": ["tools/stream-test-deno"]
 }

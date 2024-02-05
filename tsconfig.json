@@ -25,5 +25,5 @@
     "stripInternal": true,
   },
   "include": ["src", "tools"],
-  "exclude": ["tools/stream-test"],
+  "exclude": ["tools/stream-test-deno"],
 }

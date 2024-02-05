@@ -65,8 +65,7 @@ export function minifyStatics(statics: readonly string[]): readonly string[] {
     }
 
     if (field && !handledHole) {
-      console.warn('parse error');
-      minified.push(hole);
+      throw new TypeError('Parse error');
     }
 
     buffer = '';
@@ -177,10 +176,6 @@ export function minifyStatics(statics: readonly string[]): readonly string[] {
       return acc;
     }, [])
     .filter((item): item is string => typeof item == 'string');
-  if (newStatics.length !== statics.length) {
-    console.error(statics, newStatics);
-    throw new Error('the lengths of statics and newStatics are mismatched');
-  }
 
   return newStatics;
 }
