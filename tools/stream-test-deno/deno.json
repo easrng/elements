@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "@preact/signals-core": "npm:@preact/signals-core@^1.5.1"
+  }
+}

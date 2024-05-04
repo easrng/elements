@@ -1,12 +1,12 @@
 import {type Buffer} from 'node:buffer';
 import {parseHTML} from 'linkedom';
-import {html} from '../src/elements.ts';
+import {_h} from '../src/elements.ts';
 import '../src/server.ts';
 import '../src/debug.ts';
 
 const {document} = parseHTML('<!doctype html>');
 globalThis.document = document;
-
+const html = _h.s;
 export function fuzz(buffer: Buffer) {
   const s = buffer.toString().split('\0');
   try {

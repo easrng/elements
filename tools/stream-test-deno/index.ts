@@ -1,10 +1,11 @@
 import {
   type DocumentFragment as DocumentFragment_,
   DOMParser,
-  type Node,
 } from "https://deno.land/x/deno_dom@v0.1.43/deno-dom-wasm.ts";
-import { html } from "../../dist/elements.js";
+// @deno-types="../../dist/core.d.ts"
+import { type Component, createContext, Suspense, signal } from "../../dist/elements.js";
 import { stream } from "../../dist/server.js";
+import { computed } from "../../dist/elements.js";
 
 declare global {
   const DocumentFragment: typeof DocumentFragment_;
@@ -15,14 +16,14 @@ const document_ = new DOMParser().parseFromString("", "text/html")!;
 (globalThis as unknown as Record<"document", typeof document>).document =
   document_;
 
-const box = ({
+const box: Component<{
+  color: string;
+  text: string;
+}> = ({
   color,
   text,
   children,
-}: {
-  color: string;
-  text: string;
-  children: Node;
+  html,
 }) => {
   return html`
     <div
@@ -37,14 +38,12 @@ const box = ({
   `;
 };
 
-const delay = async ({
+const delay: Component<{
+  duration: string;
+}> = async ({
   duration,
   children,
   signal,
-}: {
-  duration: string;
-  children: Node;
-  signal: AbortSignal;
 }) => {
   await new Promise<void>((resolve, reject) => {
     let done = false;
@@ -55,29 +54,43 @@ const delay = async ({
       },
       Number.parseInt(duration, 10),
     );
-    signal.addEventListener("abort", () => {
-      if (!done) {
-        console.log("abort");
-        reject();
-      }
-    });
+    if (signal) {
+      signal.addEventListener("abort", () => {
+        if (!done) {
+          console.log("abort");
+          reject();
+        }
+      });
+    }
   });
-  return html`${children}`;
+  return children;
 };
+
+const exampleCtx = createContext<string>();
+const contextValue: Component = ({ context }) => {
+  return context(exampleCtx) || "";
+};
+
+const indirect: Component = ({ html, children }) => {
+  return html`<div><${contextValue} /><br />${children}</div>`;
+};
+
+const appComponent: Component = ({ html }) => {
+  const signals = signal("signals")
+  return html`<html><head><title>${"Hello World!"}</title></head><body><h1 ...${{
+    style: { color: "red" },
+  }} title="hovered!">i am red and hoverable</h1><${box} color="darkred" ...${{
+    text: "pink",
+  }}>some red stuff</><div>${html`<b>fragment</b>!`}</div><${exampleCtx} value="hello contexts"><${indirect}><${contextValue} /><br /><${exampleCtx} value="hello nested contexts"><${contextValue} /></></></><br/>${computed(() => signals.value + ' uwu')}<h2>slow:</h2><${Suspense} fallback=${html`Loading...`}><${delay} duration="${2000}">waited 2 seconds</></></body></html>`;
+}
 
 Deno.serve(
   (_request) =>
     new Response(
-      stream(
-        html`<html><head><title>${"Hello World!"}</title></head><body><h1 ...${{
-          style: { color: "red" },
-        }} title="hovered!">i am red and hoverable</h1><${box} color="darkred" ...${{
-          text: "pink",
-        }}>some red stuff</><div>${html`<b>fragment</b>!`}</div><h2>slow:</h2><${delay} duration="${2000}">waited 2 seconds</></body></html>`,
-      ),
+      stream(appComponent),
       {
         headers: {
-          "content-type": "text/html",
+          "content-type": "text/html;charset=utf-8",
         },
       },
     ),

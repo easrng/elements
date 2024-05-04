@@ -1,16 +1,23 @@
-import {_h} from './core.js';
+import {
+  _h,
+  type ContextObject,
+  type Component,
+  type ComponentProps,
+  type Context,
+  Signal,
+} from './core.js';
 
 type Update = Parameters<typeof _h.n>[1][0];
-type Template = [DocumentFragment, Update[], unknown[]];
+type Template = [DocumentFragment, Update[], unknown[], ContextObject];
 const streamMap = new WeakMap<Node, Template>();
 
 type ChildrenNode = Comment & {
   __children?: () => ReturnType<typeof renderStream>;
 };
-_h.n = (fragment, updates, holes) => {
+_h.n = (fragment, updates, holes, context) => {
   const node = document.createDocumentFragment();
   node.append(document.createComment('rendering in streaming mode'));
-  streamMap.set(node, [fragment, updates, holes]);
+  streamMap.set(node, [fragment, updates, holes, context]);
   return node;
 };
 
@@ -108,6 +115,7 @@ function* renderStream(
   holes: unknown[],
   signal: AbortSignal,
   options: Options,
+  context: ContextObject,
 ): Generator<string | ComponentThenable, void, string | Node | undefined> {
   const parseUpdateProp = (updateProp: UpdateProp): [string, unknown] => {
     const [name, ...value] = updateProp.map((propPart) =>
@@ -135,19 +143,26 @@ function* renderStream(
     const child = node.childNodes[i]!;
     const updateNode = updateTree[i];
     // eslint-disable-next-line no-labels
-    render: {
+    block: {
       if (updateNode) {
         if (updateNode.updates) {
           for (const update of updateNode.updates) {
             if (update.t! + 1) {
               const hole = holes[update.t!]!;
-              for (const node of (
+              for (let node of (
                 (Array.isArray(hole)
                   ? hole.flat(Number.POSITIVE_INFINITY)
                   : [hole]) as unknown[]
               ).filter(
-                (item) => item && !/boolean|function|symbol/.test(typeof item),
+                (item) =>
+                  !(
+                    item == null || /boolean|function|symbol/.test(typeof item)
+                  ),
               )) {
+                if (node instanceof Signal) {
+                  node = node.value as unknown;
+                }
+
                 if (streamMap.has(node as Node)) {
                   yield* streamNode(node as Node, signal, options);
                 } else if (
@@ -162,13 +177,14 @@ function* renderStream(
               }
 
               // eslint-disable-next-line no-labels
-              break render;
+              break block;
             } else if (update.n) {
               const [name, value] = parseUpdateProp(update.n);
               setProperty(child as Element, name, value);
             } else {
               // Component
               const children: ChildrenNode = document.createComment('');
+              // eslint-disable-next-line @typescript-eslint/no-loop-func
               children.__children = () =>
                 renderStream(
                   update.r!.cloneNode(true) as DocumentFragment,
@@ -176,20 +192,30 @@ function* renderStream(
                   holes,
                   signal,
                   options,
+                  context,
                 );
-              const props: any = {};
+              const props: ComponentProps = {
+                children,
+                html: _h.s.bind(context),
+                // eslint-disable-next-line @typescript-eslint/no-loop-func, @typescript-eslint/no-unsafe-return
+                context: (key) => context[_h.o(key)!] as any,
+                signal,
+              };
               for (const item of update.s!) {
                 const [name, value] = parseUpdateProp(item);
                 Object.assign(props, name === '...' ? value : {[name]: value});
               }
 
-              props.children = children;
-              props.signal = signal;
-              let component = (
-                holes[update.o!] as (
-                  _: unknown,
-                ) => Node | string | ComponentThenable
-              )(props);
+              let contextSymbol: symbol | void;
+              if (
+                (contextSymbol = _h.o(holes[update.o!] as Context<unknown>) as
+                  | symbol
+                  | void)
+              ) {
+                context = {...context, [contextSymbol]: props['value']};
+              }
+
+              let component = (holes[update.o!] as Component)(props);
               if (typeof component === 'string') {
                 yield escapeString(component);
               } else {
@@ -227,6 +253,7 @@ function* renderStream(
               holes,
               signal,
               options,
+              context,
             );
             yield close;
           }
@@ -256,19 +283,34 @@ function treeifyUpdates(updates: Update[]) {
   return updateTree;
 }
 
-function* streamNode(node: Node, signal: AbortSignal, options: Options) {
-  const [fragment, updates, holes] = streamMap.get(node)!;
+function* streamNode(
+  node: Node | ChildrenNode,
+  signal: AbortSignal,
+  options: Options,
+) {
+  if (typeof node === 'object' && node && '__children' in node) {
+    yield* node.__children!();
+    return;
+  }
+
+  const [fragment, updates, holes, context] = streamMap.get(node)!;
   yield* renderStream(
     fragment,
     treeifyUpdates(updates),
     holes,
     signal,
     options,
+    context,
   );
 }
 
 const encoder = new TextEncoder();
-export function stream(node: Node, options?: Partial<Options>) {
+const empty = new Uint8Array(0);
+export function stream(
+  component: Component<Record<never, never>>,
+  options?: Partial<Options>,
+) {
+  const node = _h.s.bind({})`<${component}/>`;
   const abortController = new AbortController();
   const gen = streamNode(
     node,
@@ -291,9 +333,7 @@ export function stream(node: Node, options?: Partial<Options>) {
         if (typeof value === 'string') {
           controller.enqueue(encoder.encode(value));
         } else {
-          // Make the stream flush by adding a newline
-          controller.enqueue(encoder.encode('<!--\n-->'));
-
+          controller.enqueue(empty);
           passBack = await value;
         }
       } catch (error) {
