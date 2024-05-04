@@ -1,3 +1,4 @@
+import {cpus} from 'node:os';
 import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
 import {type RollupOptions, type OutputOptions} from 'rollup';
@@ -24,7 +25,17 @@ const config: RollupOptions & {output: OutputOptions} = {
       declarationDir: 'dist',
       include: input,
     }),
-    terser(),
+    terser(
+      Object.defineProperties(
+        {},
+        {
+          maxWorkers: {
+            value: cpus().length || 1,
+            enumerable: false,
+          },
+        },
+      ),
+    ),
   ],
 };
 

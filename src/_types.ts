@@ -195,9 +195,9 @@ interface ProcessChar extends Fn {
 }
 
 type Chars<InputString extends string> = Call<Strings.Split<''>, InputString>;
-type Nextify<Array extends unknown[]> = Call<
-  Tuples.Zip<Array, [...Call<Tuples.Drop<1, Array>>, undefined]>
->;
+type Nextify<Array extends unknown[]> = Array extends []
+  ? []
+  : Call<Tuples.Zip<Array, [...Call<Tuples.Drop<1, Array>>, undefined]>>;
 
 type ImplProcessString<
   State extends StateType,
@@ -266,13 +266,6 @@ interface ToStateString extends Fn {
       : never;
 }
 
-type NestingError<State extends StateType> = {
-  ParseError: State['mode'] extends Mode.COMMENT
-    ? 'Unclosed comment'
-    : State['nesting'] extends 1
-      ? 'Unclosed tag'
-      : `${State['nesting']} unclosed tags`;
-};
 type HoleTypes<State extends StateType, Types extends TypeMap> = Call<
   Tuples.Map,
   Match<
@@ -291,9 +284,22 @@ type TypeMap = {
   component: unknown;
   propValue: unknown;
 };
-type EnsureArray<T> = T extends [] ? T : [T];
+type EnsureArray<T> = T extends
+  | readonly []
+  | readonly [any, ...any]
+  | readonly [...any, any]
+  ? T
+  : [T];
 type Postprocess<State extends StateType, Types extends TypeMap> = EnsureArray<
-  State['nesting'] extends 0 ? HoleTypes<State, Types> : NestingError<State>
+  State['nesting'] extends 0
+    ? HoleTypes<State, Types>
+    : {
+        ParseError: State['mode'] extends Mode.COMMENT
+          ? 'Unclosed comment'
+          : State['nesting'] extends 1
+            ? 'Unclosed tag'
+            : `${State['nesting']} unclosed tags`;
+      }
 >;
 type ImplParse<Statics extends readonly string[]> = Pipe<
   Statics,
@@ -316,3 +322,45 @@ export type Parse<
   Statics extends readonly string[],
   Types extends TypeMap,
 > = Postprocess<ImplParse<Statics>, Types>;
+
+function html<Strings extends readonly string[]>(
+  _strings: Strings,
+  ..._holes: Parse<
+    Strings,
+    {
+      child: 'child';
+      component: 'component';
+      propValue: 'propValue';
+    }
+  >
+) {
+  // Tests are type level
+}
+
+// Expect success:
+
+// Empty
+html([''] as const);
+// No holes
+html(['awawa'] as const);
+// Self closing tag
+html(['<tag/>'] as const);
+// Tag
+html(['<tag></tag>'] as const);
+// Get hole types
+html(
+  ['<', ' prop=', '>', '</><!--', '-->'] as const,
+  'component',
+  'propValue',
+  'child',
+  'commented out (anything goes)',
+);
+
+// Expect error:
+
+// @ts-expect-error: invalid holes
+html(['<tag ', '="value"></>'] as const, 'nope');
+// @ts-expect-error: unexpected holes
+html(['awawa'] as const, 1);
+// @ts-expect-error: unclosed tag
+html(['<tag>'] as const);
