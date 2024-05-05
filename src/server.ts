@@ -151,7 +151,7 @@ function* renderStream(
               const hole = holes[update.t!]!;
               for (let node of (
                 (Array.isArray(hole)
-                  ? hole.flat(Number.POSITIVE_INFINITY)
+                  ? hole.flat(Infinity) // eslint-disable-line unicorn/prefer-number-properties
                   : [hole]) as unknown[]
               ).filter(
                 (item) =>

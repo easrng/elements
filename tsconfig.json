@@ -22,7 +22,6 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "stripInternal": true,
-    "isolatedModules": true,
     "verbatimModuleSyntax": true
   },
   "include": ["src", "tools"],

@@ -1,6 +1,8 @@
 import {computed, effect, Signal} from '@preact/signals-core';
 
-export * from '@preact/signals-core';
+// eslint-disable-next-line @typescript-eslint/naming-convention
+declare const TINY: boolean;
+
 /* This is a horrible hack but it makes the .d.ts valid */
 /* eslint-disable-next-line @typescript-eslint/naming-convention */
 type hooks = never;
@@ -39,6 +41,14 @@ function fragmentize(fragment: DocumentFragment): Node {
   return fragment.firstChild || document.createComment('');
 }
 
+const _hooksE: typeof hooks.e = (state) => state.slice(1) as Children;
+const _hooksN: typeof hooks.n = (fragment, toUpdate, holes, context) => {
+  applyUpdates(fragment, toUpdate, holes, context);
+  return fragmentize(fragment);
+};
+
+const _hooksO: typeof hooks.o = (key) => contexts.get(key)!;
+
 /**
  * Hooks for debug
  * @internal
@@ -60,17 +70,14 @@ const hooks: {
   o: (key: Context<unknown>) => symbol | undefined;
   /** HTML template string fn */
   s: typeof html;
-} = {
-  e: (state) => state.slice(1) as Children,
-  n: (fragment, toUpdate, holes, context) => {
-    applyUpdates(fragment, toUpdate, holes, context);
-    return fragmentize(fragment);
-  },
-  o(key) {
-    return contexts.get(key)!;
-  },
-  s: html,
-};
+} = TINY
+  ? ({} as unknown as typeof hooks)
+  : {
+      e: _hooksE,
+      n: _hooksN,
+      o: _hooksO,
+      s: html,
+    };
 
 /* Reused */
 /**
@@ -82,15 +89,15 @@ const hooks: {
 const holeOrListenersOrFragmentInfoOrSuspense = Symbol();
 
 /* HTM parser */
-const enum Mode {
-  SLASH = 0,
-  TEXT = 1,
-  WHITESPACE = 2,
-  TAGNAME = 3,
-  COMMENT = 4,
-  PROP_SET = 5,
-  PROP_APPEND = 6,
-}
+const modeSlash: Mode = 0 as Mode;
+const modeText: Mode = 1 as Mode;
+const modeWhitespace: Mode = 2 as Mode;
+const modeTagname: Mode = 3 as Mode;
+const modeComment: Mode = 4 as Mode;
+const modePropSet: Mode = 5 as Mode;
+const modePropAppend: Mode = 6 as Mode;
+type Mode = (0 | 1 | 2 | 3 | 4 | 5 | 6) & {__brand: 'Mode'};
+
 type StringOrHole = string | typeof holeOrListenersOrFragmentInfoOrSuspense;
 type Props = [string, ...(StringOrHole | true)[]][];
 type Ele = [StringOrHole, Props, ...unknown[]];
@@ -104,30 +111,30 @@ type CurrentStateChild = [unknown, StringOrHole, Props, ...Children] & {
 type CurrentStateParent = [undefined, ...Children];
 type CurrentState = CurrentStateParent | CurrentStateChild;
 const parse = function (statics: readonly string[]): Children {
-  let mode = Mode.TEXT;
+  let mode = modeText;
   let buffer = '';
   let quote = '';
-  let current: CurrentState = [hooks.t];
+  let current: CurrentState = TINY ? ([] as unknown as [any]) : [hooks.t];
   let char: string;
   let propName: string;
 
   const commit = (field?: number) => {
     if (
-      mode == Mode.TEXT &&
+      mode == modeText &&
       (field || (buffer = buffer.replace(/^\s*\n\s*|\s*\n\s*$/g, '')))
     ) {
       current.push(field ? holeOrListenersOrFragmentInfoOrSuspense : buffer);
     } else if (!current[0]) {
       /* Top level */
-    } else if (mode == Mode.TAGNAME && (field || buffer)) {
+    } else if (mode == modeTagname && (field || buffer)) {
       current[1] = field ? holeOrListenersOrFragmentInfoOrSuspense : buffer;
-      mode = Mode.WHITESPACE;
-    } else if (mode == Mode.WHITESPACE && buffer == '...' && field) {
+      mode = modeWhitespace;
+    } else if (mode == modeWhitespace && buffer == '...' && field) {
       current[2].push(['...', holeOrListenersOrFragmentInfoOrSuspense]);
-    } else if (mode == Mode.WHITESPACE && buffer && !field) {
+    } else if (mode == modeWhitespace && buffer && !field) {
       current[2].push([buffer, true]);
-    } else if (mode >= Mode.PROP_SET) {
-      if (mode == Mode.PROP_SET) {
+    } else if (mode >= modePropSet) {
+      if (mode == modePropSet) {
         current[2].push(
           field
             ? buffer
@@ -135,7 +142,7 @@ const parse = function (statics: readonly string[]): Children {
               : [propName, holeOrListenersOrFragmentInfoOrSuspense]
             : [propName, buffer],
         );
-        mode = Mode.PROP_APPEND;
+        mode = modePropAppend;
       } else if (field || buffer) {
         current[2][current[2].length - 1]!.push(
           ...(field
@@ -150,7 +157,7 @@ const parse = function (statics: readonly string[]): Children {
 
   for (let i = 0; i < statics.length; i++) {
     if (i) {
-      if (mode == Mode.TEXT) {
+      if (mode == modeText) {
         commit();
       }
 
@@ -160,19 +167,19 @@ const parse = function (statics: readonly string[]): Children {
     for (let j = 0; j < statics[i]!.length; j++) {
       char = statics[i]![j]!;
 
-      if (mode == Mode.TEXT) {
+      if (mode == modeText) {
         if (char == '<') {
           /* Commit buffer */
           commit();
           current = [current, '', []];
-          mode = Mode.TAGNAME;
+          mode = modeTagname;
         } else {
           buffer += char;
         }
-      } else if (mode == Mode.COMMENT) {
+      } else if (mode == modeComment) {
         /* Ignore everything until the last three characters are '-', '-' and '>' */
         if (buffer == '--' && char == '>') {
-          mode = Mode.TEXT;
+          mode = modeText;
           buffer = '';
         } else {
           buffer = char + buffer[0];
@@ -187,19 +194,19 @@ const parse = function (statics: readonly string[]): Children {
         quote = char;
       } else if (char == '>') {
         commit();
-        mode = Mode.TEXT;
+        mode = modeText;
       } else if (!mode) {
         /* Ignore everything until the tag ends */
       } else if (char == '=') {
-        mode = Mode.PROP_SET;
+        mode = modePropSet;
         propName = buffer;
         buffer = '';
       } else if (
         char == '/' &&
-        (mode < Mode.PROP_SET || statics[i]![j + 1] == '>')
+        (mode < modePropSet || statics[i]![j + 1] == '>')
       ) {
         commit();
-        if (mode == Mode.TAGNAME) {
+        if (mode == modeTagname) {
           current = current[0]!;
         }
 
@@ -207,24 +214,24 @@ const parse = function (statics: readonly string[]): Children {
         (current = current[0]!).push(
           (mode as unknown as unknown[]).slice(1) as Ele,
         );
-        mode = Mode.SLASH;
+        mode = modeSlash;
       } else if (/[ \t\n\r]/.test(char)) {
         /* <a disabled> */
         commit();
-        mode = Mode.WHITESPACE;
+        mode = modeWhitespace;
       } else {
         buffer += char;
       }
 
-      if (mode == Mode.TAGNAME && buffer == '!--') {
-        mode = Mode.COMMENT;
+      if (mode == modeTagname && buffer == '!--') {
+        mode = modeComment;
         current = current[0]!;
       }
     }
   }
 
   commit();
-  return hooks.e(current, mode);
+  return (TINY ? _hooksE : hooks.e)(current, mode);
 };
 
 /* Framework */
@@ -295,7 +302,7 @@ const setProperty = (
   hydrate?: () => void,
 ) => {
   let useCapture: boolean | string;
-  if (value instanceof Signal) {
+  if (!TINY && value instanceof Signal) {
     if (hydrate) {
       return hydrate();
     }
@@ -577,7 +584,9 @@ function replaceWith(oldNode: ChildNode, newNode: string | Node) {
   }
 }
 
-const effectCleanup = new FinalizationRegistry<() => void>((fn) => fn());
+const effectCleanup = /* #__PURE__ */ new FinalizationRegistry<() => void>(
+  (fn) => fn(),
+);
 
 function applyUpdates(
   fragment: DocumentFragment,
@@ -587,20 +596,22 @@ function applyUpdates(
 ) {
   const parseUpdateProp = (updateProp: UpdateProp): [string, unknown] => {
     let hasSignal;
-    let hole;
+    let hole: unknown;
     const [name, ...value] = updateProp.map((propPart) => {
       // eslint-disable-next-line no-return-assign
       return Array.isArray(propPart)
         ? propPart[0]
-          ? (hole = holes[propPart[1]]) instanceof Signal
-            ? ((hasSignal = true), hole)
-            : hole
+          ? TINY
+            ? hole
+            : (hole = holes[propPart[1]]) instanceof Signal
+              ? ((hasSignal = true), hole)
+              : hole
           : propPart[1]
         : propPart;
     });
     return [
       name as string,
-      hasSignal
+      !TINY && hasSignal
         ? value.length > 1
           ? computed(() => value.join(''))
           : (value[0] as Signal)
@@ -613,12 +624,14 @@ function applyUpdates(
   const holeToNode = (hole: unknown): Node => {
     const frag = document.createDocumentFragment();
     const children = (
-      Array.isArray(hole) ? hole.flat(Number.POSITIVE_INFINITY) : [hole]
+      Array.isArray(hole)
+        ? hole.flat(Infinity) // eslint-disable-line unicorn/prefer-number-properties
+        : [hole]
     ) as unknown[];
     for (let item of children) {
       if (item == null || /boolean|function|symbol/.test(typeof item)) continue;
       const signal = item;
-      if (signal instanceof Signal) {
+      if (!TINY && signal instanceof Signal) {
         const anchor = document.createComment('⚓');
         (item = document.createDocumentFragment()).append(
           anchor,
@@ -662,7 +675,7 @@ function applyUpdates(
         children,
         html: html.bind(context),
         // eslint-disable-next-line @typescript-eslint/no-loop-func, @typescript-eslint/no-unsafe-return
-        context: (key) => context[hooks.o(key)!] as any,
+        context: (key) => context[(TINY ? _hooksO : hooks.o)(key)!] as any,
       };
       for (const item of update.s!) {
         const [name, value] = parseUpdateProp(item);
@@ -670,7 +683,11 @@ function applyUpdates(
       }
 
       let contextSymbol;
-      if ((contextSymbol = hooks.o(holes[update.o!] as Context<unknown>))) {
+      if (
+        (contextSymbol = (TINY ? _hooksO : hooks.o)(
+          holes[update.o!] as Context<unknown>,
+        ))
+      ) {
         context = Object.create(context) as ContextObject;
         context[contextSymbol] = props['value'];
       }
@@ -730,7 +747,7 @@ function html(strings: readonly string[], ...holes: unknown[]) {
     cache.set(strings, (tmpl = template(strings)));
   }
 
-  return hooks.n(
+  return (TINY ? _hooksN : hooks.n)(
     tmpl.e.cloneNode(true) as DocumentFragment,
     tmpl.t,
     holes,
