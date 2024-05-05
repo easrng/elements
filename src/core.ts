@@ -114,7 +114,7 @@ const parse = function (statics: readonly string[]): Children {
   let mode = modeText;
   let buffer = '';
   let quote = '';
-  let current: CurrentState = TINY ? ([] as unknown as [any]) : [hooks.t];
+  let current: CurrentState = TINY ? ([,] as [any]) : [hooks.t];
   let char: string;
   let propName: string;
 
@@ -302,14 +302,11 @@ const setProperty = (
   hydrate?: () => void,
 ) => {
   let useCapture: boolean | string;
-  if (!TINY && value instanceof Signal) {
+  if (name == 'ref') {
+    value.value = dom;
+  } else if (!TINY && value instanceof Signal) {
     if (hydrate) {
       return hydrate();
-    }
-
-    if (name == 'ref') {
-      value.value = dom;
-      return;
     }
 
     effectCleanup.register(
@@ -602,7 +599,7 @@ function applyUpdates(
       return Array.isArray(propPart)
         ? propPart[0]
           ? TINY
-            ? hole
+            ? holes[propPart[1]]
             : (hole = holes[propPart[1]]) instanceof Signal
               ? ((hasSignal = true), hole)
               : hole

@@ -43,7 +43,7 @@ const ts = typescript({
   emitDeclarationOnly: true,
   declaration: true,
   declarationDir: 'dist',
-  include: input,
+  include: [...input, 'src/tiny.ts'],
 });
 const jsToTs: Plugin = {
   name: 'jsToTs',
@@ -80,6 +80,7 @@ const options = {
 } as const satisfies RollupOptions;
 const tinyOptions = {
   input: 'src/tiny.ts',
+  output: options.output,
   plugins: [
     jsToTs,
     {
@@ -110,8 +111,9 @@ rmSync(dist, {
 });
 if (development) {
   process.env['NODE_ENV'] = 'development';
-  const watcher = watch(options);
-  watcher.on('event', async (event: RollupWatcherEvent) => {
+  const watcher1 = watch(options);
+  const watcher2 = watch(tinyOptions);
+  const handler = async (event: RollupWatcherEvent) => {
     switch (event.code) {
       case 'START': {
         break;
@@ -142,7 +144,10 @@ if (development) {
         break;
       }
     }
-  });
+  };
+
+  watcher1.on('event', handler);
+  watcher2.on('event', handler);
   const server = await createServer({
     root: fileURLToPath(new URL('test/', import.meta.url)),
   });

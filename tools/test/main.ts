@@ -1,14 +1,27 @@
 /* eslint-disable no-alert */
-import {
-  type Component,
-  createContext,
-  Suspense,
-  render,
-  signal,
-  computed,
-  effect,
-} from '../../dist/elements.js';
-import '../../dist/debug.js';
+import type * as elementsTypes from '../../dist/elements.js';
+
+type Component<T extends Record<string, unknown> = Record<string, unknown>> =
+  elementsTypes.Component<T>;
+let createContext: typeof elementsTypes.createContext;
+// eslint-disable-next-line @typescript-eslint/naming-convention
+let Suspense: typeof elementsTypes.Suspense;
+let render: typeof elementsTypes.render;
+let signal: typeof elementsTypes.signal;
+let computed: typeof elementsTypes.computed;
+let effect: typeof elementsTypes.effect;
+
+const tiny = new URLSearchParams(location.search).has('tiny');
+if (tiny) {
+  // With tiny signals are treated as normal values, but I didn't want to stub them.
+  ({signal, computed, effect} = await import('@preact/signals-core'));
+  ({createContext, Suspense, render} = await import('../../dist/tiny.js'));
+} else {
+  ({createContext, Suspense, render, signal, computed, effect} = await import(
+    '../../dist/elements.js'
+  ));
+  await import('../../dist/debug.js');
+}
 
 const box: Component<{
   color: string;
@@ -46,10 +59,10 @@ const cases = {
       render(({html}) => html`<h1>should not show up`)
     );
   },
-  '!missing comment close'() {
+  '!missing comment close in tag'() {
     // prettier-ignore
     document.body.append(
-      render(({html}) => html`<!-- should not show up`)
+      render(({html}) => html`<h1><!-- should not show up</h1>`)
     );
   },
   '!extra closing tag'() {
@@ -163,7 +176,7 @@ const cases = {
     const form: Component = ({html}) => {
       const nameInput = signal<HTMLInputElement | undefined>(undefined);
       const name = signal('');
-      effect(() => console.log(name));
+      effect(() => console.log('nameInput:', nameInput.value));
       return html`
         <form onsubmit=${(event: Event) => event.preventDefault()}>
           <input
