@@ -24,6 +24,7 @@ const box: Component<{
 };
 
 const time = signal<number>(Date.now());
+const timeText = computed(() => new Date(time.value).toLocaleTimeString());
 setInterval(() => {
   time.value = Date.now();
 }, 1);
@@ -103,9 +104,9 @@ const cases = {
     document.body.append(render(({html}) => html`<span>awawa</span>!`));
   },
   'basic context'() {
-    const exampleCtx = createContext<string>();
+    const exampleContext = createContext<string>();
     const contextValue: Component = ({context}) => {
-      return context(exampleCtx) || '';
+      return context(exampleContext) || '';
     };
 
     const indirect: Component = ({html, children}) => {
@@ -115,7 +116,7 @@ const cases = {
     document.body.append(
       render(
         ({html}) =>
-          html`<${exampleCtx} value="hello contexts"><${indirect}><${contextValue} /><br /><${exampleCtx} value="hello nested contexts"><${contextValue} /></></></>`,
+          html`<${exampleContext} value="hello contexts"><${indirect}><${contextValue} /><br /><${exampleContext} value="hello nested contexts"><${contextValue} /></></></>`,
       ),
     );
   },
@@ -141,11 +142,9 @@ const cases = {
       ),
     );
   },
-  'child signal'() {
+  'child signal and string interpolated prop signal'() {
     const clock: Component = ({html}) => html`
-      <div>
-        The time is ${computed(() => new Date(time.value).toLocaleTimeString())}
-      </div>
+      <div title="The time is ${timeText}">The time is ${timeText}</div>
     `;
     document.body.append(render(clock));
   },

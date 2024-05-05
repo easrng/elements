@@ -161,19 +161,19 @@ export function minifyStatics(statics: readonly string[]): readonly string[] {
         : item,
     )
     // eslint-disable-next-line unicorn/no-array-reduce
-    .reduce<(string | typeof hole)[]>((acc, curr) => {
-      const last = acc[acc.length - 1];
-      if (typeof last == 'string' && typeof curr == 'string') {
-        if (curr == '-->' && last.endsWith('<!--')) {
-          acc[acc.length - 1] = last.slice(0, -4);
+    .reduce<(string | typeof hole)[]>((accumulator, current) => {
+      const last = accumulator[accumulator.length - 1];
+      if (typeof last == 'string' && typeof current == 'string') {
+        if (current == '-->' && last.endsWith('<!--')) {
+          accumulator[accumulator.length - 1] = last.slice(0, -4);
         } else {
-          acc[acc.length - 1] = last + curr;
+          accumulator[accumulator.length - 1] = last + current;
         }
       } else {
-        acc.push(curr);
+        accumulator.push(current);
       }
 
-      return acc;
+      return accumulator;
     }, [])
     .filter((item): item is string => typeof item == 'string');
 

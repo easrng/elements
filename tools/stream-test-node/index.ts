@@ -55,8 +55,7 @@ const delay: Component<{
     if (signal) {
       signal.addEventListener('abort', () => {
         if (!done) {
-          console.log('abort');
-          reject();
+          reject(new Error('aborted'));
         }
       });
     }
@@ -64,9 +63,9 @@ const delay: Component<{
   return children;
 };
 
-const exampleCtx = createContext<string>();
+const exampleContext = createContext<string>();
 const contextValue: Component = ({context}) => {
-  return context(exampleCtx) || '';
+  return context(exampleContext) || '';
 };
 
 const indirect: Component = ({html, children}) => {
@@ -79,7 +78,7 @@ const appComponent: Component = ({html}) => {
     style: {color: 'red'},
   }} title="hovered!">i am red and hoverable</h1><${box} color="darkred" ...${{
     text: 'pink',
-  }}>some red stuff</><div>${html`<b>fragment</b>!`}</div><${exampleCtx} value="hello contexts"><${indirect}><${contextValue} /><br /><${exampleCtx} value="hello nested contexts"><${contextValue} /></></></><br/>${computed(() => signals.value + ' uwu')}<h2>slow:</h2><${Suspense} fallback=${html`Loading...`}><${delay} duration="${2000}">waited 2 seconds</></></body></html>`;
+  }}>some red stuff</><div>${html`<b>fragment</b>!`}</div><${exampleContext} value="hello contexts"><${indirect}><${contextValue} /><br /><${exampleContext} value="hello nested contexts"><${contextValue} /></></></><br/>${computed(() => signals.value + ' uwu')}<h2>slow:</h2><${Suspense} fallback=${html`Loading...`}><${delay} duration="${2000}">waited 2 seconds</></></body></html>`;
 };
 
 const app = express();

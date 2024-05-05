@@ -1,10 +1,10 @@
+import {Signal} from '@preact/signals-core';
 import {
   _h,
   type ContextObject,
   type Component,
   type ComponentProps,
   type Context,
-  Signal,
 } from './core.js';
 
 type Update = Parameters<typeof _h.n>[1][0];

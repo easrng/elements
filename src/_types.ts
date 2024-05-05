@@ -33,7 +33,7 @@ type StateType = {
 type ValidState<T extends StateType> = T;
 type StateString = [StateType, string];
 
-type Impl$1<State extends StateType> = ValidState<{
+type ImplIncrementI<State extends StateType> = ValidState<{
   mode: State['mode'];
   buffer: State['buffer'];
   quote: State['quote'];
@@ -43,7 +43,7 @@ type Impl$1<State extends StateType> = ValidState<{
 }>;
 interface IncrementI extends Fn {
   return: this['arg0'] extends StateString
-    ? [Impl$1<this['arg0'][0]>, this['arg0'][1]]
+    ? [ImplIncrementI<this['arg0'][0]>, this['arg0'][1]]
     : never;
 }
 
