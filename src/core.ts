@@ -633,6 +633,7 @@ function applyUpdates(
         (item = document.createDocumentFragment()).append(
           anchor,
           document.createComment(''),
+          document.createComment(''), // Unused, keeps text nodes from merging
         );
         effectCleanup.register(
           anchor,
