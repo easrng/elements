@@ -633,7 +633,6 @@ function applyUpdates(
         (item = document.createDocumentFragment()).append(
           anchor,
           document.createComment(''),
-          document.createComment(''), // Unused, keeps text nodes from merging
         );
         effectCleanup.register(
           anchor,
@@ -652,13 +651,17 @@ function applyUpdates(
     return fragmentize(frag);
   };
 
-  for (const update of updates) {
-    /* eslint-disable-next-line unicorn/no-array-reduce */
-    const node = update.e.reduce<DocumentFragment | ChildNode>(
-      (node, i) => node.childNodes[i]!,
-      fragment,
-    ) as ChildNode;
-
+  for (const [update, node] of updates.map(
+    (update) =>
+      [
+        update,
+        // eslint-disable-next-line unicorn/no-array-reduce
+        update.e.reduce<DocumentFragment | ChildNode>(
+          (node, i) => node.childNodes[i]!,
+          fragment,
+        ) as ChildNode,
+      ] as const,
+  )) {
     /* If update.t is undefined this is NaN which is falsy, if it's 0 it's still true, which saves space :D */
     if (update.t! + 1) {
       const hole = holes[update.t!]!;

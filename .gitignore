@@ -5,3 +5,4 @@ yarn.lock
 dist
 .nyc_output
 crash-*
+readme_code

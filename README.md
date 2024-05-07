@@ -10,7 +10,7 @@ const Counter: Component = ({html}) => {
     <div>
       Counter: ${value} is ${computed(() => (value.value % 2 ? 'odd' : 'even'))}
     </div>
-    <button onClick=${() => value.value++}>Increment</button>
+    <button onClick=${() => value.value++}>Increment</button>${" "}
     <button onClick=${() => value.value--}>Decrement</button>
   `;
 };

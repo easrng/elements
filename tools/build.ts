@@ -1,4 +1,10 @@
-import {existsSync, mkdirSync, rmSync, writeFileSync} from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import process from 'node:process';
 import {fileURLToPath} from 'node:url';
 import {cpus} from 'node:os';
@@ -15,11 +21,11 @@ import replace from '@rollup/plugin-replace';
 import {createServer} from 'vite';
 import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
-import elementsMinify from '@easrng/elements/minify';
 import sizeReport from './size-report.js';
 
 const development = process.argv.includes('--dev');
 const dist = new URL('../dist/', import.meta.url);
+const readmeCode = new URL('../readme_code/', import.meta.url);
 
 const input = [
   './src/core.ts',
@@ -120,6 +126,19 @@ rmSync(dist, {
   recursive: true,
 });
 mkdirSync(dist);
+rmSync(readmeCode, {
+  force: true,
+  recursive: true,
+});
+mkdirSync(readmeCode);
+
+for (const [i, [, type, code]] of Array.from(
+  readFileSync(new URL('../README.md', import.meta.url))
+    .toString('utf8')
+    .matchAll(/^```(.+)\n([\s\S]+?)^```$/gm),
+).entries()) {
+  writeFileSync(new URL(i + '.' + type!, readmeCode), code!);
+}
 
 // Work around faulty module detection code
 writeFileSync(new URL('minify.mjs', dist), 'export{default}from"./minify.js"');
@@ -128,6 +147,11 @@ if (development) {
   process.env['NODE_ENV'] = 'development';
   const watcher1 = watch(options);
   const watcher2 = watch(tinyOptions);
+  let ends = 0;
+  let builtResolve: () => void;
+  const builtPromise = new Promise<void>((resolve) => {
+    builtResolve = resolve;
+  });
   const handler = async (event: RollupWatcherEvent) => {
     switch (event.code) {
       case 'START': {
@@ -137,6 +161,14 @@ if (development) {
       case 'BUNDLE_END': {
         console.log('bundled', event.input, '→', event.output);
         await event.result.write(options.output);
+        if (ends < 2) {
+          ends++;
+        }
+
+        if (ends === 2) {
+          builtResolve();
+        }
+
         break;
       }
 
@@ -162,9 +194,10 @@ if (development) {
 
   watcher1.on('event', handler);
   watcher2.on('event', handler);
+  await builtPromise;
   const server = await createServer({
     root: fileURLToPath(new URL('test/', import.meta.url)),
-    plugins: [elementsMinify()],
+    plugins: [],
   });
   await server.listen();
   server.printUrls();
