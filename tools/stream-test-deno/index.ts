@@ -2,7 +2,6 @@ import {
   type DocumentFragment as DocumentFragment_,
   DOMParser,
 } from "https://deno.land/x/deno_dom@v0.1.43/deno-dom-wasm.ts";
-// @deno-types="../../dist/core.d.ts"
 import { type Component, createContext, Suspense, signal } from "../../dist/elements.js";
 import { stream } from "../../dist/server.js";
 import { computed } from "../../dist/elements.js";

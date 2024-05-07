@@ -1,63 +1,81 @@
 {
   "name": "@easrng/elements",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "a tiny framework powered by @preact/signals-core",
   "license": "MIT",
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/elements.d.ts",
+      "types": "./dist/src/elements.d.ts",
       "default": "./dist/elements.js"
     },
     "./debug": {
-      "types": "./dist/debug.d.ts",
+      "types": "./dist/src/debug.d.ts",
       "default": "./dist/debug.js"
     },
+    "./minify": {
+      "types": "./dist/src/minify.d.ts",
+      "node": "./dist/minify.mjs",
+      "default": "./dist/minify.js"
+    },
     "./server": {
-      "types": "./dist/server.d.ts",
+      "types": "./dist/src/server.d.ts",
       "default": "./dist/server.js"
     },
     "./tiny": {
-      "types": "./dist/tiny.d.ts",
+      "types": "./dist/src/tiny.d.ts",
       "default": "./dist/tiny.js"
     }
   },
   "scripts": {
-    "build": "node --import \"data:text/javascript,import{register}from'node:module';import{pathToFileURL}from'node:url';register('ts-node/esm',pathToFileURL('./'))\" tools/build.ts",
+    "build": "tsx ./tools/build.ts",
     "dev": "npm run build -- --dev",
-    "prepublish": "run-s lint build",
-    "lint": "run-p lint:*",
-    "lint:xo": "xo",
-    "lint:tsc": "tsc",
     "fmt": "run-p fmt:*",
+    "fmt:json": "prettier -w '**/*.json'",
     "fmt:ts": "xo --fix",
-    "fmt:json": "prettier -w **/*.json",
-    "fuzz": "jsfuzz ./tools/fuzz-loader.cjs"
+    "fuzz": "jsfuzz ./tools/fuzz-loader.cjs",
+    "lint": "run-p lint:*",
+    "lint:json": "prettier -c '**/*.json'",
+    "lint:tsc": "tsc",
+    "lint:xo": "xo",
+    "prepublish": "run-s lint build",
+    "test": "run-p test:*",
+    "test:minify": "tsx ./tools/minify-test.ts",
+    "test:stream": "tsx ./tools/stream-test-node/index.ts --stdout >/dev/null && echo 'ssr (node + linkedom): all good'"
   },
   "files": [
     "dist"
   ],
   "dependencies": {
-    "@preact/signals-core": "^1.6.0"
+    "@preact/signals-core": "^1.6.0",
+    "js-tokens": "^9.0.0",
+    "magic-string": "^0.30.10"
   },
   "devDependencies": {
     "@fastify/pre-commit": "^2.1.0",
+    "@rollup/plugin-replace": "^5.0.5",
     "@rollup/plugin-terser": "^0.4.4",
     "@rollup/plugin-typescript": "^11.1.6",
-    "@rollup/plugin-replace": "^5.0.5",
+    "@rspack/core": "^0.6.3",
     "@types/express": "^4.12.8",
     "@types/node": "^20.12.5",
     "cli-table3": "^0.6.4",
+    "esbuild": "^0.20.2",
+    "esbuild-loader": "^4.1.0",
     "express": "^4.19.2",
     "hotscript": "^1.0.13",
     "jsfuzz": "^1.0.15",
     "linkedom": "^0.16.11",
+    "memfs": "^4.9.2",
     "npm-run-all": "^4.1.5",
     "pretty-bytes": "^6.1.1",
+    "rolldown": "^0.10.2",
     "rollup": "^4.17.2",
-    "ts-node": "^10.9.2",
+    "rollup-plugin-esbuild": "^6.1.1",
+    "tsx": "^4.9.3",
     "typescript": "^5.4.5",
     "vite": "^5.2.11",
+    "webpack": "^5.91.0",
     "xo": "^0.58.0"
   },
   "author": "easrng",

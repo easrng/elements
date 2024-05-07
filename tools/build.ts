@@ -1,4 +1,4 @@
-import {rmSync} from 'node:fs';
+import {existsSync, mkdirSync, rmSync, writeFileSync} from 'node:fs';
 import process from 'node:process';
 import {fileURLToPath} from 'node:url';
 import {cpus} from 'node:os';
@@ -15,17 +15,18 @@ import replace from '@rollup/plugin-replace';
 import {createServer} from 'vite';
 import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
+import elementsMinify from '@easrng/elements/minify';
 import sizeReport from './size-report.js';
 
 const development = process.argv.includes('--dev');
 const dist = new URL('../dist/', import.meta.url);
 
 const input = [
-  'src/core.ts',
-  'src/debug.ts',
-  'src/server.ts',
-  'src/elements.ts',
-  'src/minify.ts',
+  './src/core.ts',
+  './src/debug.ts',
+  './src/server.ts',
+  './src/elements.ts',
+  './src/minify.ts',
 ].map((path) => resolve(path));
 
 const terserInstance = terser(
@@ -43,7 +44,12 @@ const ts = typescript({
   emitDeclarationOnly: true,
   declaration: true,
   declarationDir: 'dist',
-  include: [...input, 'src/tiny.ts'],
+  include: [
+    ...input,
+    './src/tiny.ts',
+    './src/minify/core.ts',
+    './src/minify/plugin.ts',
+  ],
 });
 const jsToTs: Plugin = {
   name: 'jsToTs',
@@ -52,8 +58,12 @@ const jsToTs: Plugin = {
       ? resolve(dirname(importer), source)
       : resolve(source);
     const tsified = path.slice(0, -2) + 'ts';
-    if (path !== tsified && input.includes(tsified)) {
-      return ((ts as any).resolveId as ResolveIdHook)(path, importer, options);
+    if (!existsSync(path) && existsSync(tsified)) {
+      return ((ts as any).resolveId as ResolveIdHook)(
+        tsified,
+        importer,
+        options,
+      );
     }
 
     return undefined;
@@ -76,10 +86,10 @@ const options = {
       preventAssignment: false,
     }),
   ],
-  external: '@preact/signals-core',
+  external: ['@preact/signals-core', 'magic-string', 'js-tokens'],
 } as const satisfies RollupOptions;
 const tinyOptions = {
-  input: 'src/tiny.ts',
+  input: './src/tiny.ts',
   output: options.output,
   plugins: [
     jsToTs,
@@ -88,7 +98,7 @@ const tinyOptions = {
       resolveId(source, _importer, _options) {
         if (source === '@preact/signals-core') {
           return {
-            id: resolve('src/signals-stub.js'),
+            id: resolve('./src/signals-stub.js'),
           };
         }
 
@@ -109,6 +119,11 @@ rmSync(dist, {
   force: true,
   recursive: true,
 });
+mkdirSync(dist);
+
+// Work around faulty module detection code
+writeFileSync(new URL('minify.mjs', dist), 'export{default}from"./minify.js"');
+
 if (development) {
   process.env['NODE_ENV'] = 'development';
   const watcher1 = watch(options);
@@ -131,7 +146,6 @@ if (development) {
       }
 
       case 'END': {
-        await sizeReport();
         break;
       }
 
@@ -150,6 +164,7 @@ if (development) {
   watcher2.on('event', handler);
   const server = await createServer({
     root: fileURLToPath(new URL('test/', import.meta.url)),
+    plugins: [elementsMinify()],
   });
   await server.listen();
   server.printUrls();

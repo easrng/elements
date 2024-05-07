@@ -22,8 +22,9 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "stripInternal": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "rootDir": "."
   },
-  "include": ["src", "tools"],
-  "exclude": ["tools/stream-test-deno"],
+  "include": ["./src", "./tools"],
+  "exclude": ["./tools/stream-test-deno"]
 }

@@ -1,5 +1,5 @@
 /* eslint-disable no-alert */
-import type * as elementsTypes from '../../dist/elements.js';
+import type * as elementsTypes from '@easrng/elements';
 
 type Component<T extends Record<string, unknown> = Record<string, unknown>> =
   elementsTypes.Component<T>;
@@ -15,12 +15,12 @@ const tiny = new URLSearchParams(location.search).has('tiny');
 if (tiny) {
   // With tiny signals are treated as normal values, but I didn't want to stub them.
   ({signal, computed, effect} = await import('@preact/signals-core'));
-  ({createContext, Suspense, render} = await import('../../dist/tiny.js'));
+  ({createContext, Suspense, render} = await import('@easrng/elements/tiny'));
 } else {
   ({createContext, Suspense, render, signal, computed, effect} = await import(
-    '../../dist/elements.js'
+    '@easrng/elements'
   ));
-  await import('../../dist/debug.js');
+  await import('@easrng/elements/debug');
 }
 
 const box: Component<{
@@ -69,6 +69,19 @@ const cases = {
     document.body.append(
       render(({html}) => html`<h1>should not show up</h1></`),
     );
+  },
+  '!bad hole positioning'() {
+    document.body.append(
+      render(({html}) => html`<h1${0}>should not show up</h1></`),
+    );
+  },
+  'hole after /'() {
+    // This is weird, don't do it, but fuzzing picked it up as an inconsistency,
+    // so i wanted it documented.
+    document.body.append(render(({html}) => html`<div/${0}>`));
+  },
+  'early /'() {
+    document.body.append(render(({html}) => html`<div/awawa>`));
   },
   'props with holes'() {
     document.body.append(
@@ -195,6 +208,24 @@ const cases = {
     };
 
     document.body.append(render(form));
+  },
+  'boolean props'() {
+    document.body.append(
+      render(({html}) => html`<input type="checkbox" disabled checked />`),
+    );
+  },
+  'props with really fucked up quoting'() {
+    document.body.append(
+      render(
+        ({html}) => html`<input type=c"h${'e'}ck"'box' disabled checked />`,
+      ),
+    );
+  },
+  'prop with single quote in double quote'() {
+    document.body.append(render(({html}) => html`<input value="a'wawa'" />`));
+  },
+  'prop with both kinds of quotes'() {
+    document.body.append(render(({html}) => html`<input value="'"'"' />`));
   },
 };
 for (let [name, test] of Object.entries(cases)) {

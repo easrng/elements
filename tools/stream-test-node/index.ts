@@ -1,4 +1,5 @@
 import {Readable} from 'node:stream';
+import process from 'node:process';
 import type {ReadableStream as nodeReadableStream} from 'node:stream/web';
 import {DOMParser} from 'linkedom';
 import express from 'express';
@@ -8,8 +9,8 @@ import {
   createContext,
   Suspense,
   type Component,
-} from '../../dist/elements.js';
-import {stream as streamWeb} from '../../dist/server.js';
+} from '@easrng/elements';
+import {stream as streamWeb} from '@easrng/elements/server';
 
 const stream = (node: Parameters<typeof streamWeb>[0]) =>
   Readable.fromWeb(
@@ -81,11 +82,15 @@ const appComponent: Component = ({html}) => {
   }}>some red stuff</><div>${html`<b>fragment</b>!`}</div><${exampleContext} value="hello contexts"><${indirect}><${contextValue} /><br /><${exampleContext} value="hello nested contexts"><${contextValue} /></></></><br/>${computed(() => signals.value + ' uwu')}<h2>slow:</h2><${Suspense} fallback=${html`Loading...`}><${delay} duration="${2000}">waited 2 seconds</></></body></html>`;
 };
 
-const app = express();
-app.get('/', (_request, response) => {
-  response.header('content-type', 'text/html;charset=utf-8');
-  stream(appComponent).pipe(response);
-});
-app.listen(8000, () => {
-  console.log('Listening on port 8000');
-});
+if (process.argv.includes('--stdout')) {
+  stream(appComponent).pipe(process.stdout);
+} else {
+  const app = express();
+  app.get('/', (_request, response) => {
+    response.header('content-type', 'text/html;charset=utf-8');
+    stream(appComponent).pipe(response);
+  });
+  app.listen(8000, () => {
+    console.log('Listening on port 8000');
+  });
+}
