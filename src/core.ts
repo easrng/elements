@@ -19,9 +19,7 @@ export type ComponentProps<
   /** When streaming, an AbortSignal is passed so you can cancel work if the client disconnects */
   signal?: AbortSignal;
 };
-/** @internal */
 export type SyncChild = Node | string;
-/** @internal */
 export type PossiblyAsyncChild = SyncChild | PromiseLike<SyncChild>;
 export type Component<
   ExtraProps extends Record<string, unknown> = Record<string, unknown>,
