@@ -6,6 +6,19 @@ import {minifyStatics} from './core.js';
 const templateStringify = (str: string) =>
   JSON.stringify(str).replace(/\${|`/g, '\\$&').slice(1, -1);
 
+const overwrite = (
+  magic: MagicString,
+  from: number,
+  to: number,
+  content: string,
+) => {
+  if (from === to) {
+    magic.appendLeft(from, content);
+  } else {
+    magic.overwrite(from, to, content);
+  }
+};
+
 const rollupPlugin = {
   name: '@easrng/elements/minify',
   transform(
@@ -45,7 +58,8 @@ const rollupPlugin = {
           const newValue = templateStringify(
             minifyStatics([eval(token.value) as string])[0]!, // eslint-disable-line no-eval
           );
-          magic.overwrite(
+          overwrite(
+            magic,
             index + 1,
             index + 1 + (token.value.length - 2),
             newValue,
@@ -84,7 +98,8 @@ const rollupPlugin = {
             minified = minifyStatics(statics).entries();
             for (const [i, newStatic] of minified) {
               const raw = rawStatics[i]!;
-              magic.overwrite(
+              overwrite(
+                magic,
                 raw.pos,
                 raw.pos + raw.str.length,
                 templateStringify(newStatic),

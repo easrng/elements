@@ -227,6 +227,9 @@ const cases = {
   'prop with both kinds of quotes'() {
     document.body.append(render(({html}) => html`<input value="'"'"' />`));
   },
+  'no gap between holes'() {
+    document.body.append(render(({html}) => html`${'hello'}${'world'}`));
+  },
 };
 for (let [name, test] of Object.entries(cases)) {
   const shouldError = name[0] === '!';
