@@ -21,11 +21,27 @@ import replace from '@rollup/plugin-replace';
 import {createServer} from 'vite';
 import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
+import {$} from 'zx';
+import pLimit from 'p-limit';
 import sizeReport from './size-report.js';
 
 const development = process.argv.includes('--dev');
 const dist = new URL('../dist/', import.meta.url);
 const readmeCode = new URL('../readme_code/', import.meta.url);
+const limit = pLimit(1);
+const fixTypes = async () =>
+  limit(
+    async () => $`
+      cd ${fileURLToPath(new URL('../', import.meta.url))} &&
+      [ -x dist/src/ ] &&
+      # for deno
+      find dist/src/ -type f -name '*.d.ts' -exec sed -i 's/\\.js'\\''/.d.ts'\\''/g' {} \\; &&
+      rm -rf dist/minify &&
+      mv dist/src/* dist/ &&
+      rmdir dist/src ||
+      true
+    `,
+  );
 
 const input = [
   './src/core.ts',
@@ -161,6 +177,7 @@ if (development) {
       case 'BUNDLE_END': {
         console.log('bundled', event.input, '→', event.output);
         await event.result.write(options.output);
+        await fixTypes();
         if (ends < 2) {
           ends++;
         }
@@ -207,4 +224,5 @@ if (development) {
   const bundleTiny = await rollup(tinyOptions);
   await bundleTiny.write(options.output);
   await sizeReport();
+  await fixTypes();
 }

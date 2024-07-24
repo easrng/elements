@@ -1,13 +1,18 @@
 import {type Buffer} from 'node:buffer';
-import {parseHTML} from 'linkedom';
-import {_h} from '@easrng/elements';
+import {parseHTML, Node} from 'linkedom';
 import '@easrng/elements/server';
 import '@easrng/elements/debug';
 import {minifyStatics} from '../src/minify/core.js';
+import type * as elementTypes from '../src/elements.js';
+
+const {_h} = (await import(
+  '@easrng/elements' as string
+)) as typeof elementTypes;
 
 const {document} = parseHTML('<!doctype html>');
-globalThis.document = document;
-const html = _h.s;
+const html = _h.s.bind({
+  [_h.a]: [document, Node],
+}) as unknown as (s: readonly string[]) => Node;
 const wrap = document.createElement('div');
 // eslint-disable-next-line @typescript-eslint/ban-types
 export function fuzz(buffer: Buffer) {

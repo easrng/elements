@@ -5,20 +5,31 @@ import {
   type Component,
   type ComponentProps,
   type Context,
+  type Doc,
+  type DocParentNode,
+  type DocNode,
+  type DocComment,
+  type DocElement,
 } from './core.js';
 
 type Update = Parameters<typeof _h.n>[1][0];
-type Template = [DocumentFragment, Update[], unknown[], ContextObject];
-const streamMap = new WeakMap<Node, Template>();
+type Template = [DocParentNode, Update[], unknown[], ContextObject];
+const streamMap = new WeakMap<DocNode, Template>();
+const isStream = Symbol();
 
-type ChildrenNode = Comment & {
+type ChildrenNode = DocComment & {
   __children?: () => ReturnType<typeof renderStream>;
 };
+const oldHookN = _h.n;
 _h.n = (fragment, updates, holes, context) => {
-  const node = document.createDocumentFragment();
-  node.append(document.createComment('rendering in streaming mode'));
-  streamMap.set(node, [fragment, updates, holes, context]);
-  return node;
+  if (context[isStream]) {
+    const node = context[_h.a][0].createDocumentFragment();
+    node.append(context[_h.a][0].createComment('rendering in streaming mode'));
+    streamMap.set(node, [fragment, updates, holes, context]);
+    return node;
+  }
+
+  return oldHookN(fragment, updates, holes, context);
 };
 
 type UpdateTree = {
@@ -64,7 +75,7 @@ const propToHtml: Record<string, string> = {
 
 const htmlLowerCase =
   /^accessK|^auto[A-Z]|^ch|^col|cont|cross|dateT|encT|form[A-Z]|frame|hrefL|inputM|maxL|minL|noV|playsI|readO|rowS|spellC|src[A-Z]|tabI|item[A-Z]/;
-const setProperty = (dom: Element, name: string, value: any) => {
+const setProperty = (dom: DocElement, name: string, value: any) => {
   if (name == '...') {
     /* eslint-disable-next-line guard-for-in */
     for (const spreadName in value) {
@@ -102,21 +113,20 @@ const setProperty = (dom: Element, name: string, value: any) => {
   }
 };
 
-type ComponentThenable = PromiseLike<Node | string>;
-const defaultOptions = {
-  /** Don't use <template> tags to render nodes to strings. Defaults to false. */
-  disableTemplate: false,
+type ComponentThenable = PromiseLike<DocNode | string>;
+type Options = {
+  disableTemplate: boolean;
 };
-type Options = typeof defaultOptions;
 
 function* renderStream(
-  node: ParentNode,
+  node: DocParentNode,
   updateTree: UpdateTree,
   holes: unknown[],
   signal: AbortSignal,
   options: Options,
   context: ContextObject,
-): Generator<string | ComponentThenable, void, string | Node | undefined> {
+): Generator<string | ComponentThenable, void, string | DocNode | undefined> {
+  const [doc] = context[_h.a];
   const parseUpdateProp = (updateProp: UpdateProp): [string, unknown] => {
     const [name, ...value] = updateProp.map((propPart) =>
       Array.isArray(propPart)
@@ -128,10 +138,13 @@ function* renderStream(
     return [name as string, value.length > 1 ? value.join('') : value[0]];
   };
 
-  function renderBasic(node: Node | string, options: Options) {
+  function renderBasic(node: DocNode | string, options: Options) {
     const {disableTemplate} = options;
-    const t = document.createElement(disableTemplate ? 'div' : 'template');
-    (disableTemplate ? t : (t as HTMLTemplateElement).content).append(
+    const t = doc.createElement(disableTemplate ? 'div' : 'template');
+    (disableTemplate
+      ? t
+      : (t as DocElement & {content: DocParentNode}).content
+    ).append(
       typeof node === 'object' && 'cloneNode' in node
         ? node.cloneNode(true)
         : node,
@@ -151,7 +164,7 @@ function* renderStream(
               const hole = holes[update.t!]!;
               for (let node of (
                 (Array.isArray(hole)
-                  ? hole.flat(Infinity) // eslint-disable-line unicorn/prefer-number-properties
+                  ? hole.flat(Infinity)
                   : [hole]) as unknown[]
               ).filter(
                 (item) =>
@@ -163,8 +176,8 @@ function* renderStream(
                   node = node.value as unknown;
                 }
 
-                if (streamMap.has(node as Node)) {
-                  yield* streamNode(node as Node, signal, options);
+                if (streamMap.has(node as DocNode)) {
+                  yield* streamNode(node as DocNode, signal, options);
                 } else if (
                   typeof node === 'object' &&
                   node &&
@@ -172,7 +185,7 @@ function* renderStream(
                 ) {
                   yield* (node as ChildrenNode).__children!();
                 } else {
-                  yield renderBasic(node as string | Node, options);
+                  yield renderBasic(node as string | DocNode, options);
                 }
               }
 
@@ -180,14 +193,14 @@ function* renderStream(
               break block;
             } else if (update.n) {
               const [name, value] = parseUpdateProp(update.n);
-              setProperty(child as Element, name, value);
+              setProperty(child as DocElement, name, value);
             } else {
               // Component
-              const children: ChildrenNode = document.createComment('');
+              const children: ChildrenNode = doc.createComment('');
               // eslint-disable-next-line @typescript-eslint/no-loop-func
               children.__children = () =>
                 renderStream(
-                  update.r!.cloneNode(true) as DocumentFragment,
+                  update.r!.cloneNode(true) as DocParentNode,
                   treeifyUpdates(update.l!),
                   holes,
                   signal,
@@ -234,21 +247,18 @@ function* renderStream(
         }
 
         if (child.nodeType === 1) {
+          const noChildren = child.cloneNode(false);
+          const outer = (noChildren as DocElement).outerHTML;
+          const tag = /^<([^\s>]+)/.exec(outer)![1]!;
           if (
-            /^(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/.test(
-              (child as Element).tagName,
-            )
+            outer.endsWith(`</${tag}>`) &&
+            (child as DocElement).childNodes.length > 0
           ) {
-            yield (child as Element).outerHTML;
-          } else {
-            const inner = (child as Element).innerHTML;
-            const outer = (child as Element).outerHTML;
-            const closeIndex = outer.lastIndexOf('</');
-            const open = outer.slice(0, closeIndex - inner.length);
-            const close = outer.slice(closeIndex);
+            const open = outer.slice(0, -1 * (tag.length + 3));
+            const close = outer.slice(-1 * (tag.length + 3));
             yield open;
             yield* renderStream(
-              child as Element,
+              child as DocElement,
               updateNode,
               holes,
               signal,
@@ -256,6 +266,8 @@ function* renderStream(
               context,
             );
             yield close;
+          } else {
+            yield outer;
           }
         }
       } else {
@@ -284,7 +296,7 @@ function treeifyUpdates(updates: Update[]) {
 }
 
 function* streamNode(
-  node: Node | ChildrenNode,
+  node: DocNode | ChildrenNode,
   signal: AbortSignal,
   options: Options,
 ) {
@@ -308,16 +320,21 @@ const encoder = new TextEncoder();
 const empty = new Uint8Array(0);
 export function stream(
   component: Component<Record<never, never>>,
-  options?: Partial<Options>,
+  doc: Doc,
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  nodeClass: Function,
 ) {
-  const node = _h.s.bind({})`<${component}/>`;
+  const node = _h.s.bind({
+    [_h.a]: [doc, nodeClass],
+    [isStream]: true,
+  })`<${component}/>`;
   const abortController = new AbortController();
-  const gen = streamNode(
-    node,
-    abortController.signal,
-    Object.assign({}, defaultOptions, options),
-  );
-  let passBack: string | Node | undefined;
+  const checkTemplate = doc.createElement('template');
+  (checkTemplate as DocElement & {content: DocParentNode}).content.append('x');
+  const gen = streamNode(node, abortController.signal, {
+    disableTemplate: checkTemplate.innerHTML !== 'x',
+  });
+  let passBack: string | DocNode | undefined;
   return new ReadableStream<Uint8Array>({
     start(controller) {
       controller.enqueue(encoder.encode('<!doctype html>'));
@@ -338,11 +355,10 @@ export function stream(
         }
       } catch (error) {
         if (!abortController.signal.aborted) {
-          console.error(error);
           abortController.abort();
         }
 
-        controller.close();
+        controller.error(error);
       }
     },
     cancel() {

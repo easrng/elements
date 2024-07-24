@@ -1,29 +1,29 @@
 {
   "name": "@easrng/elements",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "a tiny framework powered by @preact/signals-core",
   "license": "MIT",
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/src/elements.d.ts",
+      "types": "./dist/elements.d.ts",
       "default": "./dist/elements.js"
     },
     "./debug": {
-      "types": "./dist/src/debug.d.ts",
+      "types": "./dist/debug.d.ts",
       "default": "./dist/debug.js"
     },
     "./minify": {
-      "types": "./dist/src/minify.d.ts",
+      "types": "./dist/minify.d.ts",
       "node": "./dist/minify.mjs",
       "default": "./dist/minify.js"
     },
     "./server": {
-      "types": "./dist/src/server.d.ts",
+      "types": "./dist/server.d.ts",
       "default": "./dist/server.js"
     },
     "./tiny": {
-      "types": "./dist/src/tiny.d.ts",
+      "types": "./dist/tiny.d.ts",
       "default": "./dist/tiny.js"
     }
   },
@@ -41,42 +41,44 @@
     "prepublish": "run-s lint build",
     "test": "run-p test:*",
     "test:minify": "tsx ./tools/minify-test.ts",
-    "test:stream": "tsx ./tools/stream-test-node/index.ts --stdout >/dev/null && echo 'ssr (node + linkedom): all good'"
+    "test:stream": "tsx ./tools/stream-test-node/index.ts --stdout | cmp - tools/stream-test-node/expected.txt && echo 'ssr (node + linkedom): all good'"
   },
   "files": [
     "dist"
   ],
   "dependencies": {
-    "@preact/signals-core": "^1.6.0",
+    "@preact/signals-core": "^1.7.0",
     "js-tokens": "^9.0.0",
     "magic-string": "^0.30.10"
   },
   "devDependencies": {
     "@fastify/pre-commit": "^2.1.0",
-    "@rollup/plugin-replace": "^5.0.5",
+    "@rollup/plugin-replace": "^5.0.7",
     "@rollup/plugin-terser": "^0.4.4",
     "@rollup/plugin-typescript": "^11.1.6",
-    "@rspack/core": "^0.6.3",
+    "@rspack/core": "^0.7.5",
     "@types/express": "^4.12.8",
-    "@types/node": "^20.12.5",
-    "cli-table3": "^0.6.4",
-    "esbuild": "^0.20.2",
-    "esbuild-loader": "^4.1.0",
+    "@types/node": "^20.14.11",
+    "cli-table3": "^0.6.5",
+    "esbuild": "^0.23.0",
+    "esbuild-loader": "^4.2.2",
     "express": "^4.19.2",
     "hotscript": "^1.0.13",
     "jsfuzz": "^1.0.15",
-    "linkedom": "^0.16.11",
-    "memfs": "^4.9.2",
+    "linkedom": "^0.18.4",
+    "memfs": "^4.9.3",
     "npm-run-all": "^4.1.5",
     "pretty-bytes": "^6.1.1",
-    "rolldown": "^0.10.2",
-    "rollup": "^4.17.2",
+    "rolldown": "^0.12.2",
+    "rollup": "^4.19.0",
     "rollup-plugin-esbuild": "^6.1.1",
-    "tsx": "^4.9.3",
-    "typescript": "^5.4.5",
-    "vite": "^5.2.11",
-    "webpack": "^5.91.0",
-    "xo": "^0.58.0"
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4",
+    "vite": "^5.3.4",
+    "webpack": "^5.93.0",
+    "xo": "^0.59.0",
+    "p-limit": "^6.1.0",
+    "zx": "^8.1.4"
   },
   "author": "easrng",
   "repository": {
@@ -90,5 +92,6 @@
   "pre-commit": "lint",
   "esm.sh": {
     "bundle": false
-  }
+  },
+  "packageManager": "pnpm@9.4.0+sha256.b6fd0bfda555e7e584ad7e56b30c68b01d5a04f9ee93989f4b93ca8473c49c74"
 }

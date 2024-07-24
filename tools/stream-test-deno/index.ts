@@ -1,19 +1,12 @@
-import {
-  type DocumentFragment as DocumentFragment_,
-  DOMParser,
-} from "https://deno.land/x/deno_dom@v0.1.43/deno-dom-wasm.ts";
-import { type Component, createContext, Suspense, signal } from "../../dist/elements.js";
+import { DOMParser, Node } from "jsr:@b-fuze/deno-dom";
+// @deno-types="../../dist/core.d.ts"
+import { createContext, Suspense } from "../../dist/core.js";
+import type { Component } from "../../dist/core.d.ts";
+// @deno-types="../../dist/server.d.ts"
 import { stream } from "../../dist/server.js";
-import { computed } from "../../dist/elements.js";
+import { computed, signal} from "@preact/signals-core";
 
-declare global {
-  const DocumentFragment: typeof DocumentFragment_;
-  const document: typeof document_;
-}
-
-const document_ = new DOMParser().parseFromString("", "text/html")!;
-(globalThis as unknown as Record<"document", typeof document>).document =
-  document_;
+const document = new DOMParser().parseFromString("", "text/html")!;
 
 const box: Component<{
   color: string;
@@ -85,7 +78,7 @@ const appComponent: Component = ({ html }) => {
 Deno.serve(
   (_request) =>
     new Response(
-      stream(appComponent),
+      stream(appComponent, document, Node),
       {
         headers: {
           "content-type": "text/html;charset=utf-8",

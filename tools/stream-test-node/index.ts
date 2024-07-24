@@ -1,7 +1,8 @@
 import {Readable} from 'node:stream';
+import {pipeline} from 'node:stream/promises';
 import process from 'node:process';
 import type {ReadableStream as nodeReadableStream} from 'node:stream/web';
-import {DOMParser} from 'linkedom';
+import {DOMParser, Node} from 'linkedom';
 import express from 'express';
 import {
   signal,
@@ -12,17 +13,12 @@ import {
 } from '@easrng/elements';
 import {stream as streamWeb} from '@easrng/elements/server';
 
-const stream = (node: Parameters<typeof streamWeb>[0]) =>
-  Readable.fromWeb(
-    streamWeb(node, {
-      // Linkedom doesn't properly support <template> tags.
-      disableTemplate: true,
-    }) as nodeReadableStream,
+const document = new DOMParser().parseFromString('', 'text/html');
+const stream = (node: Parameters<typeof streamWeb>[0]) => {
+  return Readable.fromWeb(
+    streamWeb(node, document, Node) as nodeReadableStream,
   );
-
-const document_ = new DOMParser().parseFromString('', 'text/html');
-(globalThis as unknown as Record<'document', typeof document_>).document =
-  document_;
+};
 
 const box: Component<{
   color: string;
@@ -83,12 +79,14 @@ const appComponent: Component = ({html}) => {
 };
 
 if (process.argv.includes('--stdout')) {
-  stream(appComponent).pipe(process.stdout);
+  await pipeline(stream(appComponent), process.stdout);
 } else {
   const app = express();
-  app.get('/', (_request, response) => {
+  app.get('/', async (_request, response, next) => {
     response.header('content-type', 'text/html;charset=utf-8');
-    stream(appComponent).pipe(response);
+    pipeline(stream(appComponent), response).catch((error: unknown) => {
+      next(error);
+    });
   });
   app.listen(8000, () => {
     console.log('Listening on port 8000');

@@ -3,49 +3,98 @@ import {computed, effect, Signal} from '@preact/signals-core';
 // eslint-disable-next-line @typescript-eslint/naming-convention
 declare const TINY: boolean;
 
+export interface DocNode extends EventTarget {
+  nodeType: number;
+  cloneNode(includeChildren: boolean): DocNode;
+}
+export interface DocChildNode extends DocNode {
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  nextSibling: DocChildNode | null;
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  previousSibling: DocChildNode | null;
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  parentNode: DocNode | null;
+}
+export interface DocComment extends DocChildNode {
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  nodeValue: string | null;
+}
+export interface DocTextNode extends DocChildNode {
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  nodeValue: string | null;
+}
+export interface DocParentNode extends DocNode {
+  childNodes: ArrayLike<DocChildNode>;
+  prepend(...nodes: (DocNode | string)[]): void;
+  append(...nodes: (DocNode | string)[]): void;
+  replaceChild(newNode: DocNode, oldNode: DocNode): void;
+}
+export interface DocElement extends DocParentNode, DocChildNode {
+  innerHTML: string;
+  outerHTML: string;
+  setAttribute(name: string, value: string): void;
+  removeAttribute(name: string): void;
+}
+// eslint-disable-next-line @typescript-eslint/naming-convention
+export interface DocHTMLElement extends DocElement {
+  style: {
+    cssText: string;
+    setProperty(key: string, value: string): void;
+  };
+}
+export type Doc = {
+  createComment: (text: string) => DocComment;
+  createTextNode: (text: string) => DocTextNode;
+  createElement: (tag: string, ..._: undefined[]) => DocElement;
+  createDocumentFragment: () => DocParentNode;
+};
+
 /* This is a horrible hack but it makes the .d.ts valid */
 /* eslint-disable-next-line @typescript-eslint/naming-convention */
 type hooks = never;
 /** @internal */
 export type ContextObject = Record<symbol, unknown> & {
   [holeOrListenersOrFragmentInfoOrSuspense]?: SuspenseInfo;
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  [docSymbol]: [Doc, Function];
 };
 export type ComponentProps<
   ExtraProps extends Record<string, unknown> = Record<string, unknown>,
 > = ExtraProps & {
   html: typeof html;
-  children: Node;
+  children: DocNode;
   context: <T>(context: Context<T>) => T | void;
   /** When streaming, an AbortSignal is passed so you can cancel work if the client disconnects */
   signal?: AbortSignal;
 };
-export type SyncChild = Node | string;
+export type SyncChild = DocNode | string;
 export type PossiblyAsyncChild = SyncChild | PromiseLike<SyncChild>;
 export type Component<
   ExtraProps extends Record<string, unknown> = Record<string, unknown>,
 > = (props: ComponentProps<ExtraProps>) => PossiblyAsyncChild;
 const fragOpen = '🧩[';
 const fragClose = ']🧩';
-function fragmentize(fragment: DocumentFragment): Node {
+function fragmentize(fragment: DocParentNode, doc: Doc): DocNode {
   if (fragment.childNodes.length > 1) {
-    const open = document.createComment(fragOpen);
-    const close = document.createComment(fragClose);
+    const open = doc.createComment(fragOpen);
+    const close = doc.createComment(fragClose);
     open[holeOrListenersOrFragmentInfoOrSuspense] = fragment;
     fragment.prepend(open);
     fragment.append(close);
     return fragment;
   }
 
-  return fragment.firstChild || document.createComment('');
+  return fragment.childNodes[0] || doc.createComment('');
 }
 
 const _hooksE: typeof hooks.e = (state) => state.slice(1) as Children;
 const _hooksN: typeof hooks.n = (fragment, toUpdate, holes, context) => {
   applyUpdates(fragment, toUpdate, holes, context);
-  return fragmentize(fragment);
+  return fragmentize(fragment, context[docSymbol][0]);
 };
 
 const _hooksO: typeof hooks.o = (key) => contexts.get(key)!;
+const docSymbol = Symbol();
 
 /**
  * Hooks for debug
@@ -59,15 +108,17 @@ const hooks: {
   t?: any;
   /** HTML template processor */
   n: (
-    fragment: DocumentFragment,
+    fragment: DocParentNode,
     updates: Update[],
     holes: unknown[],
     context: ContextObject,
-  ) => Node;
+  ) => DocNode;
   /** Context getter */
   o: (key: Context<unknown>) => symbol | undefined;
   /** HTML template string fn */
   s: typeof html;
+  /** Symbol for document in context */
+  a: typeof docSymbol;
 } = TINY
   ? ({} as unknown as typeof hooks)
   : {
@@ -75,6 +126,7 @@ const hooks: {
       n: _hooksN,
       o: _hooksO,
       s: html,
+      a: docSymbol,
     };
 
 /* Reused */
@@ -260,15 +312,20 @@ type Handler = (event: Event) => unknown;
 /**
  * @internal
  */
-declare global {
-  interface Element {
-    [holeOrListenersOrFragmentInfoOrSuspense]: Record<string, Handler>;
-  }
-  interface Comment {
-    [holeOrListenersOrFragmentInfoOrSuspense]: DocumentFragment;
-  }
+export interface DocElement {
+  [holeOrListenersOrFragmentInfoOrSuspense]?: Record<string, Handler>;
 }
-const setStyle = (style: CSSStyleDeclaration, key: string, value: unknown) => {
+/**
+ * @internal
+ */
+export interface DocComment {
+  [holeOrListenersOrFragmentInfoOrSuspense]?: DocParentNode;
+}
+const setStyle = (
+  style: DocHTMLElement['style'],
+  key: string,
+  value: unknown,
+) => {
   if (key[0] == '-') {
     style.setProperty(key, value == null ? '' : String(value));
   } else if (value == null) {
@@ -280,20 +337,20 @@ const setStyle = (style: CSSStyleDeclaration, key: string, value: unknown) => {
   }
 };
 
-function eventProxyCapture(this: Element, event: Event) {
-  return this[holeOrListenersOrFragmentInfoOrSuspense][event.type + true]!(
+function eventProxyCapture(this: DocElement, event: Event) {
+  return this[holeOrListenersOrFragmentInfoOrSuspense]![event.type + true]!(
     event,
   );
 }
 
-function eventProxy(this: Element, event: Event) {
-  return this[holeOrListenersOrFragmentInfoOrSuspense][event.type + false]!(
+function eventProxy(this: DocElement, event: Event) {
+  return this[holeOrListenersOrFragmentInfoOrSuspense]![event.type + false]!(
     event,
   );
 }
 
 const setProperty = (
-  dom: Element,
+  dom: DocElement,
   name: string,
   oldValue: any,
   value: any,
@@ -336,17 +393,17 @@ const setProperty = (
     }
 
     if (typeof value == 'string') {
-      (dom as Element & ElementCSSInlineStyle).style.cssText = value;
+      (dom as DocHTMLElement).style.cssText = value;
     } else {
       if (typeof oldValue == 'string') {
         /* eslint-disable-next-line no-multi-assign */
-        (dom as Element & ElementCSSInlineStyle).style.cssText = oldValue = '';
+        (dom as DocHTMLElement).style.cssText = oldValue = '';
       }
 
       if (oldValue) {
         for (name in oldValue) {
           if (!(value && name in value)) {
-            setStyle((dom as Element & ElementCSSInlineStyle).style, name, '');
+            setStyle((dom as DocHTMLElement).style, name, '');
           }
         }
       }
@@ -354,11 +411,7 @@ const setProperty = (
       if (value) {
         for (name in value) {
           if (!oldValue || value[name] !== oldValue[name]) {
-            setStyle(
-              (dom as Element & ElementCSSInlineStyle).style,
-              name,
-              value[name],
-            );
+            setStyle((dom as DocHTMLElement).style, name, value[name]);
           }
         }
       }
@@ -459,41 +512,45 @@ type Update = {
       /** Component props */
       s: UpdateProp[];
       /** Component children */
-      r: DocumentFragment;
+      r: DocParentNode;
       /** ToUpdate */
       l: Update[];
     }
 );
 type Template = ReturnType<typeof template>;
-function template(strings: readonly string[]) {
+function template(
+  strings: readonly string[],
+  doc: Doc,
+): {e: DocParentNode; t: Update[]} {
   const children = parse(strings);
   let lastHole = 0;
   function appendChildren(
-    parent: Element | DocumentFragment,
+    parent: DocElement | DocParentNode,
     children: Children,
     l: Location,
     toUpdate: Update[],
   ) {
     for (const child of children) {
-      const location = [...l, parent.childNodes.length];
+      const cn = parent.childNodes;
+      const location = [...l, cn.length];
       let node;
       if (child === holeOrListenersOrFragmentInfoOrSuspense) {
         toUpdate.push({
           e: location,
           t: lastHole++,
         });
-        node = document.createComment('');
+        node = doc.createComment('');
       } else if (typeof child == 'string') {
-        if ((node = parent.lastChild) && node.nodeType == 3) {
-          node.nodeValue += child;
+        if ((node = cn[cn.length - 1]) && node.nodeType == 3) {
+          (node as DocTextNode).nodeValue += child;
         } else {
-          node = document.createTextNode(child);
+          node = doc.createTextNode(child);
         }
       } else {
         /* `child` is Ele */
         const [type, props, ...children] = child;
         if (type === holeOrListenersOrFragmentInfoOrSuspense) {
-          const childrenFrag = document.createDocumentFragment();
+          const childrenFrag = doc.createDocumentFragment();
           const childUpdates: Update[] = [];
           toUpdate.push({
             e: location,
@@ -510,9 +567,9 @@ function template(strings: readonly string[]) {
             l: childUpdates,
           });
           appendChildren(childrenFrag, children as Children, [], childUpdates);
-          node = document.createComment('');
+          node = doc.createComment('');
         } else {
-          node = document.createElement(type);
+          node = doc.createElement(type);
           for (const prop of props) {
             if (prop.includes(holeOrListenersOrFragmentInfoOrSuspense)) {
               toUpdate.push({
@@ -544,7 +601,7 @@ function template(strings: readonly string[]) {
     }
   }
 
-  const frag = document.createDocumentFragment();
+  const frag = doc.createDocumentFragment();
   const toUpdate: Update[] = [];
   appendChildren(frag, children, [], toUpdate);
   return {
@@ -553,19 +610,22 @@ function template(strings: readonly string[]) {
   };
 }
 
-function replaceWith(oldNode: ChildNode, newNode: string | Node) {
+function replaceWith(oldNode: DocChildNode, newNode: DocNode) {
   if (newNode !== oldNode) {
-    if (oldNode.nodeType == 8 && oldNode.nodeValue == fragOpen) {
-      const fragment = (oldNode as Comment)[
+    if (
+      oldNode.nodeType == 8 &&
+      (oldNode as DocComment).nodeValue == fragOpen
+    ) {
+      const fragment = (oldNode as DocComment)[
         holeOrListenersOrFragmentInfoOrSuspense
-      ];
+      ]!;
       for (let depth = 0; ; ) {
         const next = oldNode.nextSibling;
         depth +=
           oldNode.nodeType == 8
-            ? oldNode.nodeValue == fragOpen
+            ? (oldNode as DocComment).nodeValue == fragOpen
               ? 1
-              : oldNode.nodeValue == fragClose
+              : (oldNode as DocComment).nodeValue == fragClose
                 ? -1
                 : 0
             : 0;
@@ -575,7 +635,7 @@ function replaceWith(oldNode: ChildNode, newNode: string | Node) {
       }
     }
 
-    oldNode.replaceWith(newNode);
+    (oldNode.parentNode! as DocParentNode).replaceChild(newNode, oldNode);
   }
 }
 
@@ -584,11 +644,12 @@ const effectCleanup = /* #__PURE__ */ new FinalizationRegistry<() => void>(
 );
 
 function applyUpdates(
-  fragment: DocumentFragment,
+  fragment: DocParentNode,
   updates: Update[],
   holes: unknown[],
   context: ContextObject,
 ) {
+  const [doc, nodeClass] = context[docSymbol];
   const parseUpdateProp = (updateProp: UpdateProp): [string, unknown] => {
     let hasSignal;
     let hole: unknown;
@@ -616,21 +677,19 @@ function applyUpdates(
     ];
   };
 
-  const holeToNode = (hole: unknown): Node => {
-    const frag = document.createDocumentFragment();
+  const holeToNode = (hole: unknown): DocNode => {
+    const frag = doc.createDocumentFragment();
     const children = (
-      Array.isArray(hole)
-        ? hole.flat(Infinity) // eslint-disable-line unicorn/prefer-number-properties
-        : [hole]
+      Array.isArray(hole) ? hole.flat(Infinity) : [hole]
     ) as unknown[];
     for (let item of children) {
       if (item == null || /boolean|function|symbol/.test(typeof item)) continue;
       const signal = item;
       if (!TINY && signal instanceof Signal) {
-        const anchor = document.createComment('⚓');
-        (item = document.createDocumentFragment()).append(
+        const anchor = doc.createComment('⚓');
+        (item = doc.createDocumentFragment()).append(
           anchor,
-          document.createComment(''),
+          doc.createComment(''),
         );
         effectCleanup.register(
           anchor,
@@ -641,12 +700,14 @@ function applyUpdates(
       }
 
       const result =
-        item instanceof Node ? item : document.createTextNode(item as string);
+        item instanceof nodeClass
+          ? (item as DocNode)
+          : doc.createTextNode(item as string);
       if (children.length == 1) return result;
       frag.append(result);
     }
 
-    return fragmentize(frag);
+    return fragmentize(frag, doc);
   };
 
   for (const [update, node] of updates.map(
@@ -654,10 +715,10 @@ function applyUpdates(
       [
         update,
         // eslint-disable-next-line unicorn/no-array-reduce
-        update.e.reduce<DocumentFragment | ChildNode>(
-          (node, i) => node.childNodes[i]!,
+        update.e.reduce<DocParentNode | DocChildNode>(
+          (node, i) => (node as DocParentNode).childNodes[i]!,
           fragment,
-        ) as ChildNode,
+        ) as DocChildNode,
       ] as const,
   )) {
     /* If update.t is undefined this is NaN which is falsy, if it's 0 it's still true, which saves space :D */
@@ -666,10 +727,10 @@ function applyUpdates(
       replaceWith(node, holeToNode(hole));
     } else if (update.n) {
       const [name, value] = parseUpdateProp(update.n);
-      setProperty(node as Element, name, null, value);
+      setProperty(node as DocElement, name, null, value);
     } else {
       // Component
-      const children = update.r!.cloneNode(true) as DocumentFragment;
+      const children = update.r!.cloneNode(true) as DocParentNode;
       const props: ComponentProps = {
         children,
         html: html.bind(context),
@@ -694,19 +755,20 @@ function applyUpdates(
       const fn = holes[update.o!] as Component;
       if (fn == Suspense) {
         const promises: SuspenseInfo = [];
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         context[holeOrListenersOrFragmentInfoOrSuspense] = promises;
         queueMicrotask(() => {
           if (promises.length > 0) {
             const previous = node.previousSibling;
-            const parent = node.parentNode!;
+            const parent = node.parentNode! as DocParentNode;
             replaceWith(
               node,
-              (props as unknown as Parameters<typeof Suspense>[0]).fallback,
+              holeToNode(
+                (props as unknown as Parameters<typeof Suspense>[0]).fallback,
+              ),
             );
             const fallback = previous
               ? previous.nextSibling!
-              : parent.firstChild!;
+              : parent.childNodes[0]!;
             Promise.all(promises).then(() => {
               replaceWith(fallback, children);
             }, console.error);
@@ -717,9 +779,9 @@ function applyUpdates(
       }
 
       applyUpdates(children, update.l!, holes, context);
-      props.children = fragmentize(props.children as DocumentFragment);
+      props.children = fragmentize(props.children as DocParentNode, doc);
       if (fn == Suspense) {
-        props.children = node as unknown as DocumentFragment;
+        props.children = node as unknown as DocParentNode;
       }
 
       const possiblyAsyncNode = fn(props);
@@ -741,22 +803,41 @@ function applyUpdates(
 
 const cache = new WeakMap<readonly string[], Template>();
 function html(strings: readonly string[], ...holes: unknown[]) {
+  // @ts-expect-error this is an implementation detail
+  const context = this as ContextObject;
   let tmpl = cache.get(strings);
   if (!tmpl) {
-    cache.set(strings, (tmpl = template(strings)));
+    cache.set(strings, (tmpl = template(strings, context[docSymbol][0])));
   }
 
   return (TINY ? _hooksN : hooks.n)(
-    tmpl.e.cloneNode(true) as DocumentFragment,
+    tmpl.e.cloneNode(true) as DocParentNode,
     tmpl.t,
     holes,
-    // @ts-expect-error this is an implementation detail
-    this as ContextObject,
+    context,
   );
 }
 
-function render(component: Component<Record<never, never>>) {
-  return html.bind({})`<${component}/>`;
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+/** @ts-ignore **/
+type GlobalDocument = typeof globalThis.document;
+type NativeDocument = typeof globalThis extends {document: any}
+  ? GlobalDocument
+  : never;
+
+function render<D extends Doc = NativeDocument>(
+  component: Component<Record<never, never>>,
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  doc: [D | Doc, Function] | undefined = [
+    (globalThis as any).document,
+    (globalThis as any).Node,
+    // eslint-disable-next-line @typescript-eslint/ban-types
+  ] as [Doc, Function],
+): ReturnType<ReturnType<D['createComment']>['cloneNode']> {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  return html.bind({
+    [docSymbol]: doc,
+  } satisfies ContextObject)`<${component}/>` as any;
 }
 
 export {createContext, hooks as _h, render, Suspense};

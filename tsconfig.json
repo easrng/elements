@@ -26,5 +26,5 @@
     "rootDir": "."
   },
   "include": ["./src", "./tools"],
-  "exclude": ["./tools/stream-test-deno"]
+  "exclude": ["./tools/stream-test-deno", "./src/_types.ts"]
 }

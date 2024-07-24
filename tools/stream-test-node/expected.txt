@@ -1,0 +1,1 @@
+<!doctype html><html><head><title>Hello World!</title></head><body><h1 style="color:red;" title="hovered!">i am red and hoverable</h1><div style="background-color:darkred;color:pink;padding:0.5em;">some red stuff</div><div><b>fragment</b>!</div><div>hello contexts<br>hello contexts<br>hello nested contexts</div><br>signals uwu<h2>slow:</h2>waited 2 seconds</body></html>
