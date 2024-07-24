@@ -446,7 +446,7 @@ const setProperty = (
     }
   } else {
     if (
-      /^(width|height|href|list|form|tabIndex|download|rowSpan|colSpan|role)$/.test(
+      !/^(width|height|href|list|form|tabIndex|download|rowSpan|colSpan|role)$/.test(
         name,
       ) &&
       name in dom
