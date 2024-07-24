@@ -1,6 +1,6 @@
 {
   "name": "@easrng/elements",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "a tiny framework powered by @preact/signals-core",
   "license": "MIT",
   "type": "module",

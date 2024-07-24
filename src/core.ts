@@ -784,7 +784,9 @@ function applyUpdates(
         props.children = node as unknown as DocParentNode;
       }
 
-      const possiblyAsyncNode = fn(props);
+      const possiblyAsyncNode = TINY
+        ? fn(props)
+        : computed(() => fn(props)).peek();
       if (
         typeof possiblyAsyncNode == 'object' &&
         possiblyAsyncNode &&
