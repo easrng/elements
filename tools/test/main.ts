@@ -230,6 +230,18 @@ const cases = {
   'no gap between holes'() {
     document.body.append(render(({html}) => html`${'hello'}${'world'}`));
   },
+  'child signals are not tracked in parent'() {
+    const clock: Component = ({html}) => html`rendered at: ${timeText.value}`;
+    let calls = 0;
+    document.body.append(
+      render(
+        ({html}) =>
+          html`${computed(
+            () => html`<br />renders: ${++calls} (should stay 1) <${clock} />`,
+          )}`,
+      ),
+    );
+  },
 };
 for (let [name, test] of Object.entries(cases)) {
   const shouldError = name[0] === '!';

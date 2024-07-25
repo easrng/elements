@@ -1,4 +1,4 @@
-import {computed, effect, Signal} from '@preact/signals-core';
+import {computed, effect, Signal, untracked} from '@preact/signals-core';
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
 declare const TINY: boolean;
@@ -784,9 +784,7 @@ function applyUpdates(
         props.children = node as unknown as DocParentNode;
       }
 
-      const possiblyAsyncNode = TINY
-        ? fn(props)
-        : computed(() => fn(props)).peek();
+      const possiblyAsyncNode = TINY ? fn(props) : untracked(() => fn(props));
       if (
         typeof possiblyAsyncNode == 'object' &&
         possiblyAsyncNode &&
