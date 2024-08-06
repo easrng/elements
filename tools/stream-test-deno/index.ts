@@ -78,6 +78,7 @@ const appComponent: Component = ({ html }) => {
 Deno.serve(
   (_request) =>
     new Response(
+      // @ts-expect-error deno-dom doesn't support SVG or other XML namespaces, but the type error isn't fatal
       stream(appComponent, document, Node),
       {
         headers: {

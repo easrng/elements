@@ -36,9 +36,13 @@ const fixTypes = async () =>
       [ -x dist/src/ ] &&
       # for deno
       find dist/src/ -type f -name '*.d.ts' -exec sed -i 's/\\.js'\\''/.d.ts'\\''/g' {} \\; &&
-      rm -rf dist/minify &&
+      rm -rf dist/minify dist/typescript &&
       mv dist/src/* dist/ &&
-      rmdir dist/src ||
+      rmdir dist/src &&
+      echo '{"type":"commonjs"}' >dist/typescript/package.json &&
+      mv dist/typescript.tmp.js dist/typescript/index.js &&
+      mv dist/typescript.tmp.js.map dist/typescript/index.js.map &&
+      cp src/typescript/index.d.cts dist/typescript/index.d.ts ||
       true
     `,
   );
@@ -71,6 +75,8 @@ const ts = typescript({
     './src/tiny.ts',
     './src/minify/core.ts',
     './src/minify/plugin.ts',
+    './src/typescript/plugin.ts',
+    './src/typescript/parse.ts',
   ],
 });
 const jsToTs: Plugin = {
@@ -136,6 +142,16 @@ const tinyOptions = {
     }),
   ],
 } as const satisfies RollupOptions;
+const tsPluginOptions = {
+  input: [resolve('./src/typescript/plugin.ts')],
+  output: {
+    file: './dist/typescript.tmp.js',
+    format: 'cjs',
+    sourcemap: true,
+  },
+  plugins: [jsToTs, ts, terserInstance],
+  external: ['typescript-template-language-service-decorator'],
+} as const satisfies RollupOptions;
 
 rmSync(dist, {
   force: true,
@@ -163,6 +179,7 @@ if (development) {
   process.env['NODE_ENV'] = 'development';
   const watcher1 = watch(options);
   const watcher2 = watch(tinyOptions);
+  const watcher3 = watch(tsPluginOptions);
   let ends = 0;
   let builtResolve: () => void;
   const builtPromise = new Promise<void>((resolve) => {
@@ -178,11 +195,11 @@ if (development) {
         console.log('bundled', event.input, '→', event.output);
         await event.result.write(options.output);
         await fixTypes();
-        if (ends < 2) {
+        if (ends < 3) {
           ends++;
         }
 
-        if (ends === 2) {
+        if (ends === 3) {
           builtResolve();
         }
 
@@ -211,6 +228,7 @@ if (development) {
 
   watcher1.on('event', handler);
   watcher2.on('event', handler);
+  watcher3.on('event', handler);
   await builtPromise;
   const server = await createServer({
     root: fileURLToPath(new URL('test/', import.meta.url)),
@@ -222,7 +240,9 @@ if (development) {
   const bundle = await rollup(options);
   await bundle.write(options.output);
   const bundleTiny = await rollup(tinyOptions);
-  await bundleTiny.write(options.output);
-  await sizeReport();
+  await bundleTiny.write(tinyOptions.output);
+  const bundleTypescript = await rollup(tsPluginOptions);
+  await bundleTypescript.write(tsPluginOptions.output);
   await fixTypes();
+  await sizeReport();
 }

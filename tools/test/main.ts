@@ -17,9 +17,9 @@ if (tiny) {
   ({signal, computed, effect} = await import('@preact/signals-core'));
   ({createContext, Suspense, render} = await import('@easrng/elements/tiny'));
 } else {
-  ({createContext, Suspense, render, signal, computed, effect} = await import(
-    '@easrng/elements'
-  ));
+  const elements = await import('@easrng/elements');
+  (window as any).elements = elements;
+  ({createContext, Suspense, render, signal, computed, effect} = elements);
   await import('@easrng/elements/debug');
 }
 
@@ -56,23 +56,40 @@ const cases = {
   '!missing closing tag'() {
     // prettier-ignore
     document.body.append(
-      render(({html}) => html`<h1>should not show up`)
+      // @elements-expect-error
+      render(({html}) => html`<h1>should not show up`),
+    );
+  },
+  '!missing closing tag (component)'() {
+    const test: Component = () => 'hi!';
+    // prettier-ignore
+    document.body.append(
+      // @elements-expect-error
+      render(({html}) => html`<${test}>should not show up`),
+    );
+  },
+  'comment in tag'() {
+    document.body.append(
+      render(({html}) => html`<h1><!-- should not show up --></h1>`),
     );
   },
   '!missing comment close in tag'() {
     // prettier-ignore
     document.body.append(
-      render(({html}) => html`<h1><!-- should not show up</h1>`)
+      // @elements-expect-error
+      render(({html}) => html`<h1><!-- should not show up</h1>`),
     );
   },
   '!extra closing tag'() {
     document.body.append(
+      // @elements-expect-error
       render(({html}) => html`<h1>should not show up</h1></`),
     );
   },
   '!bad hole positioning'() {
     document.body.append(
-      render(({html}) => html`<h1${0}>should not show up</h1></`),
+      // @elements-expect-error
+      render(({html}) => html`<h1${0}>should not show up</h1>`),
     );
   },
   // 'hole after /'() {
@@ -81,6 +98,7 @@ const cases = {
   //   document.body.append(render(({html}) => html`<div/${0}>`));
   // },
   'early /'() {
+    // @elements-expect-error
     document.body.append(render(({html}) => html`<div/awawa>`));
   },
   'props with holes'() {
@@ -239,6 +257,173 @@ const cases = {
           html`${computed(
             () => html`<br />renders: ${++calls} (should stay 1) <${clock} />`,
           )}`,
+      ),
+    );
+  },
+  'mathml in html'() {
+    document.body.append(
+      render(
+        ({html}) => html`
+          <p>
+            One over square root of two (inline style):
+            <math>
+              <mfrac>
+                <mn>1</mn>
+                <msqrt>
+                  <mn>2</mn>
+                </msqrt>
+              </mfrac>
+            </math>
+          </p>
+          <p>
+            One over square root of two (display style):
+            <math display="block">
+              <mfrac>
+                <mn>1</mn>
+                <msqrt>
+                  <mn>2</mn>
+                </msqrt>
+              </mfrac>
+            </math>
+          </p>
+        `,
+      ),
+    );
+  },
+  'svg in html'() {
+    document.body.append(
+      render(
+        ({html}) => html`
+          <p>
+            Here's an SVG:<br />
+            <svg width="200" height="250">
+              <rect
+                x="10"
+                y="10"
+                width="30"
+                height="30"
+                stroke="black"
+                fill="transparent"
+                stroke-width="5"
+              />
+              <rect
+                x="60"
+                y="10"
+                rx="10"
+                ry="10"
+                width="30"
+                height="30"
+                stroke="black"
+                fill="transparent"
+                stroke-width="5"
+              />
+
+              <circle
+                cx="25"
+                cy="75"
+                r="20"
+                stroke="red"
+                fill="transparent"
+                stroke-width="5"
+              />
+              <ellipse
+                cx="75"
+                cy="75"
+                rx="20"
+                ry="5"
+                stroke="red"
+                fill="transparent"
+                stroke-width="5"
+              />
+
+              <line
+                x1="10"
+                x2="50"
+                y1="110"
+                y2="150"
+                stroke="orange"
+                stroke-width="5"
+              />
+              <polyline
+                points="60 110 65 120 70 115 75 130 80 125 85 140 90 135 95 150 100 145"
+                stroke="orange"
+                fill="transparent"
+                stroke-width="5"
+              />
+
+              <polygon
+                points="50 160 55 180 70 180 60 190 65 205 50 195 35 205 40 190 30 180 45 180"
+                stroke="green"
+                fill="transparent"
+                stroke-width="5"
+              />
+
+              <path
+                d="M20,230 Q40,205 50,230 T90,230"
+                fill="none"
+                stroke="blue"
+                stroke-width="5"
+              />
+            </svg>
+          </p>
+        `,
+      ),
+    );
+  },
+  'svg foreignObject'() {
+    document.body.append(
+      render(
+        ({html}) => html`
+          <style>
+            foreignObject {
+              color: white;
+              font: 18px serif;
+              height: 100%;
+              overflow: auto;
+            }
+          </style>
+          <svg width="200" height="200">
+            <polygon points="5,5 195,10 185,185 10,195" />
+
+            <!-- Common use case: embed HTML text into SVG -->
+            <foreignObject x="20" y="20" width="160" height="160">
+              <!--
+                In the context of SVG embedded in an HTML document, the XHTML
+                namespace could be omitted, but it is mandatory in the
+                context of an SVG document
+              -->
+              <div xmlns="http://www.w3.org/1999/xhtml">
+                This is an SVG${' '}
+                <a
+                  href="https://developer.mozilla.org/en-US/docs/Web/SVG/Element/foreignObject"
+                >
+                  foreignObject
+                </a>
+              </div>
+            </foreignObject>
+          </svg>
+        `,
+      ),
+    );
+  },
+  'mathml in svg'() {
+    document.body.append(
+      render(
+        ({html}) => html`
+          <svg width="200" height="200">
+            <polygon points="5,5 195,10 185,185 10,195" />
+            <foreignObject x="20" y="20" width="160" height="160">
+              <math style="font-size: 40px">
+                <mfrac>
+                  <mn>1</mn>
+                  <msqrt>
+                    <mn>2</mn>
+                  </msqrt>
+                </mfrac>
+              </math>
+            </foreignObject>
+          </svg>
+        `,
       ),
     );
   },

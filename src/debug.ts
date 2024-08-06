@@ -4,11 +4,11 @@ type Mode = Parameters<typeof _h.e>[1];
 const comment = 4 as Mode;
 _h.e = (state, mode) => {
   if (mode === comment) {
-    throw new Error('unclosed comment');
+    throw new Error('Unclosed comment');
   }
 
   if (state[0] && state[0] !== _h.t) {
-    throw new Error('unclosed <' + state[1].toString() + '> tag');
+    throw new Error('Unclosed <' + state[1].toString() + '> tag');
   }
 
   return state.slice(1) as Children;
@@ -17,8 +17,12 @@ _h.e = (state, mode) => {
 _h.t = new Proxy(
   {},
   {
-    get() {
-      throw new Error('extra closing tag');
+    get(_, key) {
+      throw new Error(
+        key == 't'
+          ? `Pass either a tag name or a \${component}, not both.`
+          : 'Extra closing tag',
+      );
     },
   },
 );

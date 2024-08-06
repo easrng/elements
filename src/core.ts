@@ -24,12 +24,14 @@ export interface DocTextNode extends DocChildNode {
   nodeValue: string | null;
 }
 export interface DocParentNode extends DocNode {
+  namespaceURI?: string;
   childNodes: ArrayLike<DocChildNode>;
   prepend(...nodes: (DocNode | string)[]): void;
   append(...nodes: (DocNode | string)[]): void;
   replaceChild(newNode: DocNode, oldNode: DocNode): void;
 }
 export interface DocElement extends DocParentNode, DocChildNode {
+  namespaceURI: string;
   innerHTML: string;
   outerHTML: string;
   setAttribute(name: string, value: string): void;
@@ -45,8 +47,19 @@ export interface DocHTMLElement extends DocElement {
 export type Doc = {
   createComment: (text: string) => DocComment;
   createTextNode: (text: string) => DocTextNode;
-  createElement: (tag: string, ..._: undefined[]) => DocElement;
   createDocumentFragment: () => DocParentNode;
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  createElementNS(
+    namespaceURI:
+      | 'http://www.w3.org/1999/xhtml'
+      | 'http://www.w3.org/2000/svg'
+      | 'http://www.w3.org/1998/Math/MathML'
+      | string
+      // eslint-disable-next-line @typescript-eslint/ban-types
+      | null,
+    qualifiedName: string,
+    options?: undefined,
+  ): DocElement;
 };
 
 /* This is a horrible hack but it makes the .d.ts valid */
@@ -177,6 +190,8 @@ const parse = function (statics: readonly string[]): Children {
     } else if (!current[0]) {
       /* Top level */
     } else if (mode == modeTagname && (field || buffer)) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-expressions, @typescript-eslint/no-unsafe-call
+      field && buffer && hooks.t!.t();
       current[1] = field ? holeOrListenersOrFragmentInfoOrSuspense : buffer;
       mode = modeWhitespace;
     } else if (mode == modeWhitespace && buffer == '...' && field) {
@@ -327,7 +342,8 @@ const setStyle = (
   value: unknown,
 ) => {
   if (key[0] == '-') {
-    style.setProperty(key, value == null ? '' : String(value));
+    // eslint-disable-next-line no-implicit-coercion, @typescript-eslint/restrict-plus-operands, @typescript-eslint/no-base-to-string
+    style.setProperty(key, value == null ? '' : '' + value);
   } else if (value == null) {
     (style as any)[key] = '';
   } else if (typeof value != 'number' || isNonDimensional.test(key)) {
@@ -569,9 +585,16 @@ function template(
           appendChildren(childrenFrag, children as Children, [], childUpdates);
           node = doc.createComment('');
         } else {
-          node = doc.createElement(type);
+          let xmlns: Props[number] | undefined;
+          const propertiesToSet: [
+            string,
+            true | StringOrHole | undefined,
+            Location,
+          ][] = [];
           for (const prop of props) {
-            if (prop.includes(holeOrListenersOrFragmentInfoOrSuspense)) {
+            if (prop[0] == 'xmlns') {
+              xmlns = prop;
+            } else if (prop.includes(holeOrListenersOrFragmentInfoOrSuspense)) {
               toUpdate.push({
                 e: location,
                 /* eslint-disable-next-line @typescript-eslint/no-loop-func */
@@ -584,13 +607,31 @@ function template(
             } else {
               const name = prop[0];
               const value = prop.length > 2 ? prop.slice(1).join('') : prop[1];
-              setProperty(node, name, null, value, (_?: never) =>
-                toUpdate.push({
-                  e: location,
-                  n: [name, [0, value]],
-                }),
-              );
+              propertiesToSet.push([name, value, location]);
             }
+          }
+
+          node = doc.createElementNS(
+            xmlns
+              ? xmlns.length > 2
+                ? xmlns.slice(1).join('')
+                : xmlns[1]!.toString()
+              : ({
+                  math: 'http://www.w3.org/1998/Math/MathML',
+                  svg: 'http://www.w3.org/2000/svg',
+                }[type] ??
+                  parent?.namespaceURI ??
+                  'http://www.w3.org/1999/xhtml'),
+            type,
+          );
+
+          for (const [name, value, location] of propertiesToSet) {
+            setProperty(node, name, null, value, (_?: never) =>
+              toUpdate.push({
+                e: location,
+                n: [name, [0, value]],
+              }),
+            );
           }
 
           appendChildren(node, children as Children, location, toUpdate);

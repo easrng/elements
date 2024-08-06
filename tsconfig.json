@@ -23,8 +23,9 @@
     "skipLibCheck": true,
     "stripInternal": true,
     "verbatimModuleSyntax": true,
-    "rootDir": "."
+    "rootDir": ".",
+    "plugins": [{"name": "@easrng/elements/typescript"}]
   },
   "include": ["./src", "./tools"],
-  "exclude": ["./tools/stream-test-deno", "./src/_types.ts"]
+  "exclude": ["./tools/stream-test-deno"]
 }

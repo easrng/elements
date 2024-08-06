@@ -140,7 +140,10 @@ function* renderStream(
 
   function renderBasic(node: DocNode | string, options: Options) {
     const {disableTemplate} = options;
-    const t = doc.createElement(disableTemplate ? 'div' : 'template');
+    const t = doc.createElementNS(
+      'http://www.w3.org/1999/xhtml',
+      disableTemplate ? 'div' : 'template',
+    );
     (disableTemplate
       ? t
       : (t as DocElement & {content: DocParentNode}).content
@@ -248,13 +251,19 @@ function* renderStream(
 
         if (child.nodeType === 1) {
           const noChildren = child.cloneNode(false);
-          const outer = (noChildren as DocElement).outerHTML;
+          let outer = (noChildren as DocElement).outerHTML;
           const tag = /^<([^\s>]+)/.exec(outer)![1]!;
-          if (
-            outer.endsWith(`</${tag}>`) &&
-            (child as DocElement).childNodes.length > 0
-          ) {
-            const open = outer.slice(0, -1 * (tag.length + 3));
+          if ((child as DocElement).childNodes.length > 0) {
+            const selfCloses = !outer.endsWith(`</${tag}>`);
+            if (selfCloses) {
+              (noChildren as DocElement).append(doc.createComment(''));
+              outer = (noChildren as DocElement).outerHTML;
+            }
+
+            const open = outer.slice(
+              0,
+              -1 * (tag.length + (selfCloses ? 10 : 3)),
+            );
             const close = outer.slice(-1 * (tag.length + 3));
             yield open;
             yield* renderStream(
@@ -329,7 +338,10 @@ export function stream(
     [isStream]: true,
   })`<${component}/>`;
   const abortController = new AbortController();
-  const checkTemplate = doc.createElement('template');
+  const checkTemplate = doc.createElementNS(
+    'http://www.w3.org/1999/xhtml',
+    'template',
+  );
   (checkTemplate as DocElement & {content: DocParentNode}).content.append('x');
   const gen = streamNode(node, abortController.signal, {
     disableTemplate: checkTemplate.innerHTML !== 'x',
