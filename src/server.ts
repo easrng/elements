@@ -10,6 +10,7 @@ import {
   type DocNode,
   type DocComment,
   type DocElement,
+  type SyncChild,
 } from './core.js';
 
 type Update = Parameters<typeof _h.n>[1][0];
@@ -113,7 +114,7 @@ const setProperty = (dom: DocElement, name: string, value: any) => {
   }
 };
 
-type ComponentThenable = PromiseLike<DocNode | string>;
+type AsyncChild = PromiseLike<SyncChild>;
 type Options = {
   disableTemplate: boolean;
 };
@@ -125,8 +126,8 @@ function* renderStream(
   signal: AbortSignal,
   options: Options,
   context: ContextObject,
-): Generator<string | ComponentThenable, void, string | DocNode | undefined> {
-  const [doc] = context[_h.a];
+): Generator<string | AsyncChild, void, SyncChild> {
+  const [doc, nodeClass] = context[_h.a];
   const parseUpdateProp = (updateProp: UpdateProp): [string, unknown] => {
     const [name, ...value] = updateProp.map((propPart) =>
       Array.isArray(propPart)
@@ -232,17 +233,26 @@ function* renderStream(
               }
 
               let component = (holes[update.o!] as Component)(props);
-              if (typeof component === 'string') {
-                yield escapeString(component);
-              } else {
-                if ('then' in component) {
-                  component = (yield component)!;
-                }
+              if (
+                component != null &&
+                typeof component == 'object' &&
+                'then' in component
+              ) {
+                component = yield component;
+              }
 
-                if (typeof component === 'string') {
-                  yield escapeString(component);
+              for (const child of Array.isArray(component)
+                ? (component as unknown[]).flat(Infinity)
+                : [component]) {
+                if (
+                  child == null ||
+                  /boolean|function|symbol/.test(typeof child)
+                ) {
+                  // Empty
+                } else if (child instanceof nodeClass) {
+                  yield* streamNode(child as DocNode, signal, options);
                 } else {
-                  yield* streamNode(component, signal, options);
+                  yield escapeString(String(child));
                 }
               }
             }
@@ -346,7 +356,7 @@ export function stream(
   const gen = streamNode(node, abortController.signal, {
     disableTemplate: checkTemplate.innerHTML !== 'x',
   });
-  let passBack: string | DocNode | undefined;
+  let passBack: SyncChild;
   return new ReadableStream<Uint8Array>({
     start(controller) {
       controller.enqueue(encoder.encode('<!doctype html>'));

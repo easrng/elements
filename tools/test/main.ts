@@ -98,7 +98,6 @@ const cases = {
   //   document.body.append(render(({html}) => html`<div/${0}>`));
   // },
   'early /'() {
-    // @elements-expect-error
     document.body.append(render(({html}) => html`<div/awawa>`));
   },
   'props with holes'() {

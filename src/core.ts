@@ -54,6 +54,15 @@ export type Doc = {
       | 'http://www.w3.org/1999/xhtml'
       | 'http://www.w3.org/2000/svg'
       | 'http://www.w3.org/1998/Math/MathML'
+      // eslint-disable-next-line @typescript-eslint/ban-types
+      | null,
+    qualifiedName: string,
+    options?: undefined,
+  ): DocElement;
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  createElementNS(
+    // eslint-disable-next-line @typescript-eslint/unified-signatures
+    namespaceURI:
       | string
       // eslint-disable-next-line @typescript-eslint/ban-types
       | null,
@@ -75,12 +84,20 @@ export type ComponentProps<
   ExtraProps extends Record<string, unknown> = Record<string, unknown>,
 > = ExtraProps & {
   html: typeof html;
-  children: DocNode;
+  children?: DocNode;
   context: <T>(context: Context<T>) => T | void;
   /** When streaming, an AbortSignal is passed so you can cancel work if the client disconnects */
   signal?: AbortSignal;
 };
-export type SyncChild = DocNode | string;
+export type SyncChild =
+  | DocNode
+  | string
+  | SyncChild[]
+  | false
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  | null
+  | undefined
+  | Signal<SyncChild>;
 export type PossiblyAsyncChild = SyncChild | PromiseLike<SyncChild>;
 export type Component<
   ExtraProps extends Record<string, unknown> = Record<string, unknown>,
@@ -403,11 +420,7 @@ const setProperty = (
       const spreadValue = value[spreadName];
       setProperty(dom, spreadName, oldSpreadValue, spreadValue);
     }
-  } else if (name == 'style') {
-    if (hydrate) {
-      return hydrate();
-    }
-
+  } else if (name == 'style' && name in dom) {
     if (typeof value == 'string') {
       (dom as DocHTMLElement).style.cssText = value;
     } else {
@@ -468,12 +481,13 @@ const setProperty = (
       name in dom
     ) {
       try {
-        if (hydrate) {
+        /* eslint-disable-next-line @typescript-eslint/no-unsafe-assignment */
+        (dom as any)[name] = value == null ? '' : value;
+        /* eslint-disable-next-line @typescript-eslint/no-unsafe-call */
+        if (hydrate && (dom as any)[name] !== (dom as any).cloneNode()[name]) {
           return hydrate();
         }
 
-        /* eslint-disable-next-line @typescript-eslint/no-unsafe-assignment */
-        (dom as any)[name] = value == null ? '' : value;
         return;
       } catch {
         /* ignore */
@@ -684,6 +698,43 @@ const effectCleanup = /* #__PURE__ */ new FinalizationRegistry<() => void>(
   (fn) => fn(),
 );
 
+// eslint-disable-next-line @typescript-eslint/ban-types
+const holeToNode = (hole: unknown, doc: Doc, nodeClass: Function): DocNode => {
+  let frag: DocParentNode | undefined;
+  const children = Array.isArray(hole) ? (hole.flat(Infinity) as unknown[]) : 0;
+  for (let i = 0; children ? i < children.length : !i; i++) {
+    let item = children ? children[i] : hole;
+    if (item == null || /boolean|function|symbol/.test(typeof item)) continue;
+    const signal = item;
+    if (!TINY && signal instanceof Signal) {
+      const anchor = doc.createComment('⚓');
+      (item = doc.createDocumentFragment()).append(
+        anchor,
+        doc.createComment(''),
+      );
+      effectCleanup.register(
+        anchor,
+        effect(() => {
+          replaceWith(
+            anchor.nextSibling!,
+            holeToNode(signal.value, doc, nodeClass),
+          );
+        }),
+      );
+    }
+
+    const result =
+      item instanceof nodeClass
+        ? (item as DocNode)
+        : doc.createTextNode(item as string);
+    if (!children) return result;
+    if (!frag) frag = doc.createDocumentFragment();
+    frag.append(result);
+  }
+
+  return frag ? fragmentize(frag, doc) : doc.createComment('');
+};
+
 function applyUpdates(
   fragment: DocParentNode,
   updates: Update[],
@@ -718,39 +769,6 @@ function applyUpdates(
     ];
   };
 
-  const holeToNode = (hole: unknown): DocNode => {
-    const frag = doc.createDocumentFragment();
-    const children = (
-      Array.isArray(hole) ? hole.flat(Infinity) : [hole]
-    ) as unknown[];
-    for (let item of children) {
-      if (item == null || /boolean|function|symbol/.test(typeof item)) continue;
-      const signal = item;
-      if (!TINY && signal instanceof Signal) {
-        const anchor = doc.createComment('⚓');
-        (item = doc.createDocumentFragment()).append(
-          anchor,
-          doc.createComment(''),
-        );
-        effectCleanup.register(
-          anchor,
-          effect(() => {
-            replaceWith(anchor.nextSibling!, holeToNode(signal.value));
-          }),
-        );
-      }
-
-      const result =
-        item instanceof nodeClass
-          ? (item as DocNode)
-          : doc.createTextNode(item as string);
-      if (children.length == 1) return result;
-      frag.append(result);
-    }
-
-    return fragmentize(frag, doc);
-  };
-
   for (const [update, node] of updates.map(
     (update) =>
       [
@@ -765,7 +783,7 @@ function applyUpdates(
     /* If update.t is undefined this is NaN which is falsy, if it's 0 it's still true, which saves space :D */
     if (update.t! + 1) {
       const hole = holes[update.t!]!;
-      replaceWith(node, holeToNode(hole));
+      replaceWith(node, holeToNode(hole, doc, nodeClass));
     } else if (update.n) {
       const [name, value] = parseUpdateProp(update.n);
       setProperty(node as DocElement, name, null, value);
@@ -798,13 +816,16 @@ function applyUpdates(
         const promises: SuspenseInfo = [];
         context[holeOrListenersOrFragmentInfoOrSuspense] = promises;
         queueMicrotask(() => {
-          if (promises.length > 0) {
+          // eslint-disable-next-line unicorn/explicit-length-check
+          if (promises.length) {
             const previous = node.previousSibling;
             const parent = node.parentNode! as DocParentNode;
             replaceWith(
               node,
               holeToNode(
                 (props as unknown as Parameters<typeof Suspense>[0]).fallback,
+                doc,
+                nodeClass,
               ),
             );
             const fallback = previous
@@ -832,11 +853,11 @@ function applyUpdates(
         'then' in possiblyAsyncNode
       ) {
         const promise = Promise.resolve(possiblyAsyncNode).then((value) => {
-          replaceWith(node, holeToNode(value));
+          replaceWith(node, holeToNode(value, doc, nodeClass));
         });
         context[holeOrListenersOrFragmentInfoOrSuspense]?.push(promise);
       } else {
-        replaceWith(node, holeToNode(possiblyAsyncNode));
+        replaceWith(node, holeToNode(possiblyAsyncNode, doc, nodeClass));
       }
     }
   }
@@ -851,12 +872,12 @@ function html(strings: readonly string[], ...holes: unknown[]) {
     cache.set(strings, (tmpl = template(strings, context[docSymbol][0])));
   }
 
-  return (TINY ? _hooksN : hooks.n)(
-    tmpl.e.cloneNode(true) as DocParentNode,
-    tmpl.t,
-    holes,
-    context,
-  );
+  const node = tmpl.e.cloneNode(true);
+
+  // eslint-disable-next-line unicorn/explicit-length-check
+  return tmpl.t.length
+    ? (TINY ? _hooksN : hooks.n)(node as DocParentNode, tmpl.t, holes, context)
+    : node;
 }
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -865,6 +886,9 @@ type GlobalDocument = typeof globalThis.document;
 type NativeDocument = typeof globalThis extends {document: any}
   ? GlobalDocument
   : never;
+
+// eslint-disable-next-line @typescript-eslint/no-empty-function
+const noop = () => {};
 
 function render<D extends Doc = NativeDocument>(
   component: Component<Record<never, never>>,
@@ -875,10 +899,16 @@ function render<D extends Doc = NativeDocument>(
     // eslint-disable-next-line @typescript-eslint/ban-types
   ] as [Doc, Function],
 ): ReturnType<ReturnType<D['createComment']>['cloneNode']> {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  return html.bind({
-    [docSymbol]: doc,
-  } satisfies ContextObject)`<${component}/>` as any;
+  return holeToNode(
+    component({
+      html: html.bind({
+        [docSymbol]: doc,
+      } satisfies ContextObject),
+      children: undefined,
+      context: noop,
+    }),
+    ...doc,
+  ) as ReturnType<ReturnType<D['createComment']>['cloneNode']>;
 }
 
 export {createContext, hooks as _h, render, Suspense};
