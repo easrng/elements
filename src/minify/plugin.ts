@@ -1,6 +1,7 @@
 import MagicString from 'magic-string';
 import jsTokens, {type Token} from 'js-tokens';
 import type {LoaderContext} from 'webpack';
+import {cook} from '../shared/cook.js';
 import {minifyStatics} from './core.js';
 
 const templateStringify = (str: string) =>
@@ -55,15 +56,21 @@ const rollupPlugin = {
         lastNonWhitespace.value === 'html'
       ) {
         if (token.type === 'NoSubstitutionTemplate') {
-          const newValue = templateStringify(
-            minifyStatics([eval(token.value) as string])[0]!, // eslint-disable-line no-eval
-          );
-          overwrite(
-            magic,
-            index + 1,
-            index + 1 + (token.value.length - 2),
-            newValue,
-          );
+          try {
+            const newValue = templateStringify(
+              minifyStatics([
+                cook(token.value.slice(1, -1), false, false).cooked,
+              ])[0]!,
+            );
+            overwrite(
+              magic,
+              index + 1,
+              index + 1 + (token.value.length - 2),
+              newValue,
+            );
+          } catch (error) {
+            warn(error instanceof Error ? error.message : String(error), index);
+          }
         } else if (token.type === 'TemplateHead') {
           templateStack.unshift([
             {
@@ -86,16 +93,15 @@ const rollupPlugin = {
       if (token.type === 'TemplateTail') {
         const rawStatics = templateStack.shift();
         if (rawStatics) {
-          rawStatics.push({
-            str: token.value.slice(1, -1),
-            pos: index + 1,
-          });
-          const statics = rawStatics.map(
-            ({str}) => eval('`' + str + '`') as string, // eslint-disable-line no-eval
-          );
-          let minified;
           try {
-            minified = minifyStatics(statics).entries();
+            rawStatics.push({
+              str: token.value.slice(1, -1),
+              pos: index + 1,
+            });
+            const statics = rawStatics.map(
+              ({str}) => cook(str, false, false).cooked,
+            );
+            const minified = minifyStatics(statics).entries();
             for (const [i, newStatic] of minified) {
               const raw = rawStatics[i]!;
               overwrite(
@@ -106,7 +112,7 @@ const rollupPlugin = {
               );
             }
           } catch (error) {
-            warn(String(error), index);
+            warn(error instanceof Error ? error.message : String(error), index);
           }
         }
       }

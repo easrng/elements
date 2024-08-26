@@ -36,7 +36,7 @@ const fixTypes = async () =>
       [ -x dist/src/ ] &&
       # for deno
       find dist/src/ -type f -name '*.d.ts' -exec sed -i 's/\\.js'\\''/.d.ts'\\''/g' {} \\; &&
-      rm -rf dist/minify dist/typescript &&
+      rm -rf dist/minify dist/typescript dist/shared &&
       mv dist/src/* dist/ &&
       rmdir dist/src &&
       echo '{"type":"commonjs"}' >dist/typescript/package.json &&
@@ -77,6 +77,7 @@ const ts = typescript({
     './src/minify/plugin.ts',
     './src/typescript/plugin.ts',
     './src/typescript/parse.ts',
+    './src/shared/cook.ts',
   ],
 });
 const jsToTs: Plugin = {

@@ -86,10 +86,16 @@ const cases = {
       render(({html}) => html`<h1>should not show up</h1></`),
     );
   },
-  '!bad hole positioning'() {
+  '!hole and tagname'() {
     document.body.append(
       // @elements-expect-error
       render(({html}) => html`<h1${0}>should not show up</h1>`),
+    );
+  },
+  '!bad hole positioning'() {
+    document.body.append(
+      // @elements-expect-error
+      render(({html}) => html`<h1 ${0}>should not show up</h1>`),
     );
   },
   // 'hole after /'() {

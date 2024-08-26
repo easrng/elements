@@ -115,7 +115,7 @@ export function minifyStatics(statics: readonly string[]): readonly string[] {
     }
 
     if (field && !handledHole) {
-      throw new TypeError('Incorrect hole placement, mode: ' + Mode[mode]);
+      throw new TypeError('Incorrect hole placement in mode ' + Mode[mode]);
     }
 
     buffer = '';

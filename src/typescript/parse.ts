@@ -1,3 +1,5 @@
+import {cook} from '../shared/cook.js';
+
 enum Mode {
   SLASH = 0,
   TEXT = 1,
@@ -13,8 +15,14 @@ export interface TreeNode {
   children: (string | number | TreeNode)[];
   parent?: TreeNode;
   close?: number;
+  start: number;
+  length: number;
 }
-export const parse = function (statics: readonly string[]) {
+export const parse = function (
+  raws: readonly string[],
+  starts: number[],
+  ends: number[],
+) {
   let mode = Mode.TEXT;
   let buffer = '';
   let quote = '';
@@ -26,8 +34,13 @@ export const parse = function (statics: readonly string[]) {
     type: '#fragment',
     props: [],
     children: [],
+    start: starts[0]!,
+    length: 1,
   };
-  const errors: string[] = [];
+  let errorStart: number;
+  let errorEnd: number;
+  let lastTagStart: number;
+  const errors: {start: number; length: number; message: string}[] = [];
   const addToProp = (name: string, val: string | number | true) => {
     const last = parent.props.at(-1);
     if (last && last[0] === name) {
@@ -47,7 +60,11 @@ export const parse = function (statics: readonly string[]) {
       handledHole = true;
     } else if (mode == Mode.TAGNAME && (field || buffer)) {
       if (field && buffer) {
-        errors.push(`Pass either a tag name or a \${component}, not both.`);
+        errors.push({
+          message: `Pass either a tag name or a \${component}, not both.`,
+          start: lastTagStart + 1,
+          length: starts[field]! - lastTagStart - 1,
+        });
       }
 
       parent.type = field ?? buffer;
@@ -86,14 +103,19 @@ export const parse = function (statics: readonly string[]) {
     }
 
     if (field && !handledHole) {
-      errors.push('Incorrect hole placement in mode ' + Mode[mode]);
+      errors.push({
+        message: 'Incorrect hole placement in mode ' + Mode[mode],
+        start: ends[field - 1]! - 3,
+        length: starts[field]! - (ends[field - 1]! - 3),
+      });
     }
 
     buffer = '';
     closingTag = false;
   };
 
-  for (let i = 0; i < statics.length; i++) {
+  for (let i = 0; i < raws.length; i++) {
+    const {cooked, mappings} = cook(raws[i]!, true, true);
     if (i) {
       if (mode == Mode.TEXT) {
         commit();
@@ -102,11 +124,14 @@ export const parse = function (statics: readonly string[]) {
       commit(i);
     }
 
-    for (let j = 0; j < statics[i]!.length; j++) {
-      char = statics[i]![j]!;
+    for (let j = 0; j < cooked.length; j++) {
+      char = cooked[j]!;
+      errorStart = starts[i]! + mappings[j * 2]!;
+      errorEnd = starts[i]! + mappings[j * 2 + 1]!;
 
       if (mode == Mode.TEXT) {
         if (char == '<') {
+          lastTagStart = errorStart;
           /* Commit buffer */
           commit();
           // [current, '', []];
@@ -116,6 +141,8 @@ export const parse = function (statics: readonly string[]) {
             props: [],
             children: [],
             parent: prev,
+            start: errorStart,
+            length: 0,
           };
           prev.children.push(parent);
           mode = Mode.TAGNAME;
@@ -125,6 +152,7 @@ export const parse = function (statics: readonly string[]) {
       } else if (mode == Mode.COMMENT) {
         /* Ignore everything until the last three characters are '-', '-' and '>' */
         if (buffer == '--' && char == '>') {
+          parent.length = errorEnd - parent.start;
           parent = parent.parent!;
           mode = Mode.TEXT;
           buffer = '';
@@ -140,6 +168,7 @@ export const parse = function (statics: readonly string[]) {
       } else if (char == '"' || char == "'") {
         quote = char;
       } else if (char == '>') {
+        parent.length = errorEnd - parent.start;
         closingTag = true;
         commit();
         mode = Mode.TEXT;
@@ -152,7 +181,7 @@ export const parse = function (statics: readonly string[]) {
         buffer = '';
       } else if (
         char == '/' &&
-        (mode < Mode.PROP_SET || statics[i]![j + 1] == '>')
+        (mode < Mode.PROP_SET || cooked[j + 1] == '>')
       ) {
         commit();
         if (mode == Mode.TAGNAME) {
@@ -162,7 +191,11 @@ export const parse = function (statics: readonly string[]) {
         if (parent.parent) {
           parent = parent.parent;
         } else {
-          errors.push('Extra closing tag');
+          errors.push({
+            message: 'Extra closing tag',
+            start: lastTagStart!,
+            length: errorEnd - lastTagStart!,
+          });
         }
 
         commit();
@@ -178,6 +211,7 @@ export const parse = function (statics: readonly string[]) {
       if (mode == Mode.TAGNAME && buffer == '!--') {
         mode = Mode.COMMENT;
         parent.type = '#comment';
+        parent.length = errorEnd - parent.start;
       }
     }
   }

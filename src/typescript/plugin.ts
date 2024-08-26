@@ -8,39 +8,47 @@ import {parse, type TreeNode} from './parse.js';
 
 class HtmlTemplateLanguageService implements TemplateLanguageService {
   getSyntacticDiagnostics(context: TemplateContext): ts.Diagnostic[] {
-    let errors: string[] = [];
+    let errors: {start: number; length: number; message: string}[] = [];
     const {tag} = context.node.parent as ts.TaggedTemplateExpression;
     const nodeStart = context.node.getStart();
-    const start = -1 * (nodeStart + 1) + tag.getStart();
+    const start = tag.getStart() - 1;
     const length = tag.getWidth();
     const file = context.node.getSourceFile();
 
     try {
       let holes: ts.Expression[];
-      const t: string[] = [];
+      const raw: string[] = [];
+      const starts: number[] = [];
+      const ends: number[] = [];
       if (context.typescript.isNoSubstitutionTemplateLiteral(context.node)) {
-        t.push(context.node.text);
-        // X: context.node.rawText!
+        raw.push(context.node.rawText!);
+        starts.push(context.node.getStart());
+        ends.push(context.node.getEnd());
         holes = [];
       } else {
-        t.push(context.node.head.text);
-        // X: t.raw.push(context.node.head.rawText!);
+        raw.push(context.node.head.rawText!);
+        starts.push(context.node.head.getStart());
+        ends.push(context.node.head.getEnd());
         holes = context.node.templateSpans.flatMap<ts.Expression>((e) => {
-          t.push(e.literal.text);
-          // X: t.raw.push(e.literal.rawText!);
+          raw.push(e.literal.rawText!);
+          starts.push(e.literal.getStart());
+          ends.push(e.literal.getEnd());
           return e.expression;
         });
       }
 
       let node: TreeNode;
-      ({node, errors} = parse(t));
+      ({node, errors} = parse(raw, starts, ends));
       while (node.parent) {
-        errors.push(
-          'Unclosed ' +
+        errors.push({
+          start: node.start,
+          message:
+            'Unclosed ' +
             (node.type === '#comment'
               ? 'comment'
               : `tag <${typeof node.type === 'string' ? node.type : '${' + holes[node.type - 1]!.getText() + '}'}>`),
-        );
+          length: node.length,
+        });
         node = node.parent;
       }
 
@@ -59,40 +67,43 @@ class HtmlTemplateLanguageService implements TemplateLanguageService {
         .slice(lines[i - 2] || 0, lines[i - 1] || text.length);
 
       if (flagArea.includes('@elements-dump')) {
-        errors.push(
-          JSON.stringify(
+        errors.push({
+          start,
+          length,
+          message: JSON.stringify(
             node,
             (k, v: unknown) => (k === 'parent' ? undefined : v),
             2,
           ),
-        );
+        });
       }
 
       if (flagArea.includes('@elements-expect-error')) {
-        return errors.length > 0
-          ? []
-          : [
-              {
-                category: 1 as ts.DiagnosticCategory.Error,
-                file,
-                code: 0,
-                start,
-                length,
-                messageText: 'Expected error',
-              },
-            ];
+        if (errors.length > 0) {
+          errors = [];
+        } else {
+          errors.push({
+            start,
+            length,
+            message: 'Expected error',
+          });
+        }
       }
     } catch (error) {
-      errors.push(error instanceof Error ? error.stack! : String(error));
+      errors.push({
+        start,
+        length,
+        message: error instanceof Error ? error.stack! : String(error),
+      });
     }
 
-    return errors.map((error) => ({
+    return errors.map(({start, length, message}) => ({
       category: 1 as ts.DiagnosticCategory.Error,
       file,
       code: 0,
-      start,
+      start: -1 * nodeStart + start,
       length,
-      messageText: error,
+      messageText: message,
     }));
   }
 }

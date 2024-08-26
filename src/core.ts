@@ -119,7 +119,11 @@ function fragmentize(fragment: DocParentNode, doc: Doc): DocNode {
 
 const _hooksE: typeof hooks.e = (state) => state.slice(1) as Children;
 const _hooksN: typeof hooks.n = (fragment, toUpdate, holes, context) => {
-  applyUpdates(fragment, toUpdate, holes, context);
+  // eslint-disable-next-line unicorn/explicit-length-check
+  if (toUpdate.length) {
+    applyUpdates(fragment, toUpdate, holes, context);
+  }
+
   return fragmentize(fragment, context[docSymbol][0]);
 };
 
@@ -874,10 +878,12 @@ function html(strings: readonly string[], ...holes: unknown[]) {
 
   const node = tmpl.e.cloneNode(true);
 
-  // eslint-disable-next-line unicorn/explicit-length-check
-  return tmpl.t.length
-    ? (TINY ? _hooksN : hooks.n)(node as DocParentNode, tmpl.t, holes, context)
-    : node;
+  return (TINY ? _hooksN : hooks.n)(
+    node as DocParentNode,
+    tmpl.t,
+    holes,
+    context,
+  );
 }
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
