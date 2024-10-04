@@ -53,6 +53,7 @@
   ],
   "dependencies": {
     "@preact/signals-core": "^1.7.0",
+    "ixie": "^0.0.10",
     "js-tokens": "^9.0.0",
     "magic-string": "^0.30.10",
     "typescript-template-language-service-decorator": "^2.3.2"
@@ -83,7 +84,6 @@
     "rollup-plugin-esbuild": "^6.1.1",
     "tsx": "^4.16.2",
     "typescript": "^5.5.4",
-    "vite": "^5.3.4",
     "webpack": "^5.93.0",
     "xo": "^0.59.0",
     "zx": "^8.1.4"

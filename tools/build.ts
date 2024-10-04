@@ -18,7 +18,7 @@ import {
   type RollupOptions,
 } from 'rollup';
 import replace from '@rollup/plugin-replace';
-import {createServer} from 'vite';
+import {createServer} from 'ixie';
 import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
 import {$} from 'zx';
@@ -231,12 +231,10 @@ if (development) {
   watcher2.on('event', handler);
   watcher3.on('event', handler);
   await builtPromise;
-  const server = await createServer({
-    root: fileURLToPath(new URL('test/', import.meta.url)),
-    plugins: [],
+  const addresses = await createServer({
+    sourceDir: fileURLToPath(new URL('test/', import.meta.url)),
   });
-  await server.listen();
-  server.printUrls();
+  console.log('Listening on', addresses.url);
 } else {
   const bundle = await rollup(options);
   await bundle.write(options.output);

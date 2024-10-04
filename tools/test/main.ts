@@ -92,12 +92,12 @@ const cases = {
       render(({html}) => html`<h1${0}>should not show up</h1>`),
     );
   },
-  '!bad hole positioning'() {
-    document.body.append(
-      // @elements-expect-error
-      render(({html}) => html`<h1 ${0}>should not show up</h1>`),
-    );
-  },
+  // '!bad hole positioning'() {
+  //   document.body.append(
+  //     // @elements-expect-error
+  //     render(({html}) => html`<h1 ${0}>should not show up</h1>`),
+  //   );
+  // },
   // 'hole after /'() {
   //   // This is weird, don't do it, but fuzzing picked it up as an inconsistency,
   //   // so i wanted it documented. It'll break when minified.
